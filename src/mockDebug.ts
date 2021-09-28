@@ -15,9 +15,9 @@ import { MockRuntime, IRuntimeBreakpoint, FileAccessor, IRuntimeVariable, timeou
 import { Subject } from 'await-notify';
 
 /**
- * This interface describes the mock-debug specific launch attributes
+ * This interface describes the deep-debugger specific launch attributes
  * (which are not part of the Debug Adapter Protocol).
- * The schema for these attributes lives in the package.json of the mock-debug extension.
+ * The schema for these attributes lives in the package.json of the deep-debugger extension.
  * The interface should always match this schema.
  */
 interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
@@ -62,7 +62,7 @@ export class MockDebugSession extends LoggingDebugSession {
 	 * We configure the default implementation of a debug adapter here.
 	 */
 	public constructor(fileAccessor: FileAccessor) {
-		super("mock-debug.txt");
+		super("deep-debugger.txt");
 
 		// this debugger uses zero-based lines and columns
 		this.setDebuggerLinesStartAt1(false);

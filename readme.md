@@ -17,7 +17,7 @@ More information about how to develop a new debug adapter can be found
 * Install the **Mock Debug** extension in VS Code.
 * Create a new 'program' file `readme.md` and enter several lines of arbitrary text.
 * Switch to the debug viewlet and press the gear dropdown.
-* Select the debug environment "Mock Debug".
+* Select the debug environment "Deep Debugger".
 * Press the green 'play' button to start debugging.
 
 You can now 'step through' the `readme.md` file, set and hit breakpoints, and run into exceptions (if the word exception appears in a line).
@@ -35,5 +35,5 @@ You can now 'step through' the `readme.md` file, set and hit breakpoints, and ru
 * Press `F5` to build and launch Mock Debug in another VS Code window. In that window:
   * Open a new workspace, create a new 'program' file `readme.md` and enter several lines of arbitrary text.
   * Switch to the debug viewlet and press the gear dropdown.
-  * Select the debug environment "Mock Debug".
+  * Select the debug environment "Deep Debugger".
   * Press `F5` to start debugging.

@@ -12,14 +12,14 @@ import { FileAccessor } from './mockRuntime';
 export function activateMockDebug(context: vscode.ExtensionContext, factory?: vscode.DebugAdapterDescriptorFactory) {
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('extension.mock-debug.runEditorContents', (resource: vscode.Uri) => {
+		vscode.commands.registerCommand('extension.deep-debugger.runEditorContents', (resource: vscode.Uri) => {
 			let targetResource = resource;
 			if (!targetResource && vscode.window.activeTextEditor) {
 				targetResource = vscode.window.activeTextEditor.document.uri;
 			}
 			if (targetResource) {
 				vscode.debug.startDebugging(undefined, {
-						type: 'mock',
+						type: 'deepdbg',
 						name: 'Run File',
 						request: 'launch',
 						program: targetResource.fsPath
@@ -28,14 +28,14 @@ export function activateMockDebug(context: vscode.ExtensionContext, factory?: vs
 				);
 			}
 		}),
-		vscode.commands.registerCommand('extension.mock-debug.debugEditorContents', (resource: vscode.Uri) => {
+		vscode.commands.registerCommand('extension.deep-debugger.debugEditorContents', (resource: vscode.Uri) => {
 			let targetResource = resource;
 			if (!targetResource && vscode.window.activeTextEditor) {
 				targetResource = vscode.window.activeTextEditor.document.uri;
 			}
 			if (targetResource) {
 				vscode.debug.startDebugging(undefined, {
-					type: 'mock',
+					type: 'deepdbg',
 					name: 'Debug File',
 					request: 'launch',
 					program: targetResource.fsPath,
@@ -43,7 +43,7 @@ export function activateMockDebug(context: vscode.ExtensionContext, factory?: vs
 				});
 			}
 		}),
-		vscode.commands.registerCommand('extension.mock-debug.toggleFormatting', (variable) => {
+		vscode.commands.registerCommand('extension.deep-debugger.toggleFormatting', (variable) => {
 			const ds = vscode.debug.activeDebugSession;
 			if (ds) {
 				ds.customRequest('toggleFormatting');
@@ -51,37 +51,37 @@ export function activateMockDebug(context: vscode.ExtensionContext, factory?: vs
 		})
 	);
 
-	context.subscriptions.push(vscode.commands.registerCommand('extension.mock-debug.getProgramName', config => {
+	context.subscriptions.push(vscode.commands.registerCommand('extension.deep-debugger.getProgramName', config => {
 		return vscode.window.showInputBox({
 			placeHolder: "Please enter the name of a markdown file in the workspace folder",
 			value: "readme.md"
 		});
 	}));
 
-	// register a configuration provider for 'mock' debug type
+	// register a configuration provider for 'deepdbg' debug type
 	const provider = new MockConfigurationProvider();
-	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('mock', provider));
+	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('deepdbg', provider));
 
-	// register a dynamic configuration provider for 'mock' debug type
-	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('mock', {
+	// register a dynamic configuration provider for 'deepdbg' debug type
+	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('deepdbg', {
 		provideDebugConfigurations(folder: WorkspaceFolder | undefined): ProviderResult<DebugConfiguration[]> {
 			return [
 				{
 					name: "Dynamic Launch",
 					request: "launch",
-					type: "mock",
+					type: "deepdbg",
 					program: "${file}"
 				},
 				{
 					name: "Another Dynamic Launch",
 					request: "launch",
-					type: "mock",
+					type: "deepdbg",
 					program: "${file}"
 				},
 				{
 					name: "Mock Launch",
 					request: "launch",
-					type: "mock",
+					type: "deepdbg",
 					program: "${file}"
 				}
 			];
@@ -91,7 +91,7 @@ export function activateMockDebug(context: vscode.ExtensionContext, factory?: vs
 	if (!factory) {
 		factory = new InlineDebugAdapterFactory();
 	}
-	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('mock', factory));
+	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('deepdbg', factory));
 	if ('dispose' in factory) {
 		context.subscriptions.push(factory);
 	}
@@ -161,7 +161,7 @@ class MockConfigurationProvider implements vscode.DebugConfigurationProvider {
 		if (!config.type && !config.request && !config.name) {
 			const editor = vscode.window.activeTextEditor;
 			if (editor && editor.document.languageId === 'markdown') {
-				config.type = 'mock';
+				config.type = 'deepdbg';
 				config.name = 'Launch';
 				config.request = 'launch';
 				config.program = '${file}';
