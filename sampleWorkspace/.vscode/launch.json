@@ -5,11 +5,38 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
+			"name": "Test",
 			"type": "deepdbg",
 			"request": "launch",
-			"name": "Debug readme.md",
-			"program": "${workspaceFolder}/readme.md",
-			"trace": false
-		}
+			"trace": true,
+			"launch": "PY"
+		},
+        {
+            "name": "PY",
+            "type": "python",
+            "request": "launch",
+            "program": "test.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "CPP",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "service.bin",
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+			"environment": [
+				{"name": "VAR1", "value": "EEEE"}
+			]
+        }
 	]
 }
