@@ -1,12 +1,12 @@
 {
   "name": "deep-debugger",
   "displayName": "Deep Debugger",
-  "version": "0.46.7",
-  "publisher": "andreweinand",
-  "description": "Starter extension for developing debug adapters for VS Code.",
+  "version": "0.1.0",
+  "publisher": "yurigershanov",
+  "description": "Multiprocess debugger extension",
   "author": {
-    "name": "Microsoft Corporation",
-    "email": "aweinand@microsoft.com"
+    "name": "Perceptive Automata",
+    "email": "yuri@perveptiveautomata.com"
   },
   "license": "MIT",
   "keywords": [
@@ -28,7 +28,7 @@
     "url": "https://github.com/Microsoft/vscode-mock-debug/issues"
   },
   "scripts": {
-    "vscode:prepublish": "yarn run package-ext && yarn run package-web",
+    "vscode:prepublish": "yarn run package-ext",
     "compile": "tsc -p ./",
     "lint": "eslint src --ext ts",
     "watch": "webpack --watch --devtool nosources-source-map --info-verbosity verbose --config ./build/extension.webpack.config.js",
@@ -37,34 +37,34 @@
     "test": "node ./out/test/runTest.js",
     "package": "vsce package",
     "publish": "vsce publish",
-    "package-ext": "webpack --mode production --config ./build/extension.webpack.config.js",
-    "compile-web": "webpack --devtool nosources-source-map --config ./build/web-extension.webpack.config.js",
-    "watch-web": "webpack --watch --devtool nosources-source-map --info-verbosity verbose --config ./build/web-extension.webpack.config.js",
-    "package-web": "webpack --mode production --config ./build/web-extension.webpack.config.js"
+    "package-ext": "webpack --mode production --config ./build/extension.webpack.config.js"
   },
   "dependencies": {
     "await-notify": "1.0.1",
-    "vscode-debugadapter": "^1.49.0"
+    "fs": "^0.0.1-security",
+    "net": "^1.0.2",
+    "temp": "^0.9.4",
+    "vscode-debugadapter": "^1.49.0",
+    "vscode-test": "^1.6.1"
   },
   "devDependencies": {
-    "@types/vscode": "^1.59.0",
     "@types/glob": "^7.1.4",
     "@types/mocha": "^9.0.0",
     "@types/node": "^14.14.37",
-    "eslint": "^7.32.0",
+    "@types/vscode": "1.59",
     "@typescript-eslint/eslint-plugin": "^4.29.3",
     "@typescript-eslint/parser": "^4.29.3",
+    "eslint": "^7.32.0",
     "glob": "^7.1.7",
     "mocha": "^9.1.0",
-    "typescript": "^4.3.5",
-    "vscode-debugadapter-testsupport": "^1.49.0",
-    "vsce": "^1.96.1",
     "ts-loader": "^8.1.0",
+    "typescript": "^4.3.5",
+    "vsce": "^1.96.1",
+    "vscode-debugadapter-testsupport": "^1.49.0",
     "webpack": "^4.46.0",
     "webpack-cli": "^3.3.12"
   },
   "main": "./dist/ext/extension.js",
-  "browser": "./dist/web/extension.js",
   "activationEvents": [
     "onDebugResolve:deepdbg",
     "onDebugDynamicConfigurations:deepdbg",
@@ -132,44 +132,27 @@
     "debuggers": [
       {
         "type": "deepdbg",
-        "languages": ["markdown"],
+        "languages": [
+          "markdown"
+        ],
         "label": "Deep Debugger",
         "program": "./out/debugAdapter.js",
         "runtime": "node",
         "configurationAttributes": {
           "launch": {
             "required": [
-              "program"
+              "launch"
             ],
             "properties": {
-              "program": {
+              "launch": {
                 "type": "string",
-                "description": "Absolute path to a text file.",
-                "default": "${workspaceFolder}/${command:AskForProgramName}"
-              },
-              "stopOnEntry": {
-                "type": "boolean",
-                "description": "Automatically stop after launch.",
-                "default": true
+                "description": "Name of configuration to launch",
+                "default": ""
               },
               "trace": {
                 "type": "boolean",
-                "description": "Enable logging of the Debug Adapter Protocol.",
+                "description": "Enable logging.",
                 "default": true
-              },
-              "compileError": {
-                "type": "string",
-                "description": "Simulates a compile error in 'launch' request.",
-								"enum": [
-									"default",
-									"show",
-									"hide"
-								],
-								"enumDescriptions": [
-                  "default: show fake compile error to user",
-									"show fake compile error to user",
-									"do not show fake compile error to user"
-								]
               }
             }
           }
@@ -178,21 +161,19 @@
           {
             "type": "deepdbg",
             "request": "launch",
-            "name": "Ask for file name",
-            "program": "${workspaceFolder}/${command:AskForProgramName}",
-            "stopOnEntry": true
+            "name": "Ask for name",
+            "launch": "${command:AskForProgramName}"
           }
         ],
         "configurationSnippets": [
           {
-            "label": "Mock Debug: Launch",
-            "description": "A new configuration for 'debugging' a user selected markdown file.",
+            "label": "Deep Debug: Launch",
+            "description": "A new configuration for deep debugging.",
             "body": {
               "type": "deepdbg",
               "request": "launch",
-              "name": "Ask for file name",
-              "program": "^\"\\${workspaceFolder}/\\${command:AskForProgramName}\"",
-              "stopOnEntry": true
+              "name": "Ask for name",
+              "launch": "^\"\\${command:AskForProgramName}\""
             }
           }
         ],
