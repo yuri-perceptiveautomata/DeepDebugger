@@ -2,7 +2,7 @@
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
 
-import { DeepDebugSession } from './mockDebug';
+import { DeepDebugSession } from './deepDebug';
 
 import * as Net from 'net';
 

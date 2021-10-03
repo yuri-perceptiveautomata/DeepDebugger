@@ -11,8 +11,8 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { platform } from 'process';
 import { ProviderResult } from 'vscode';
-import { DeepDebugSession } from './mockDebug';
-import { activateDeepDebug } from './activateMockDebug';
+import { DeepDebugSession } from './deepDebug';
+import { activateDeepDebug } from './activateDeepDebug';
 
 /*
  * The compile time flag 'runMode' controls how the debug adapter is run.

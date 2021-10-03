@@ -15,17 +15,17 @@
   "engines": {
     "vscode": "^1.59.0"
   },
-  "icon": "images/mock-debug-icon.png",
+  "icon": "images/deep-debug-icon.png",
   "categories": [
     "Debuggers"
   ],
   "private": true,
   "repository": {
     "type": "git",
-    "url": "https://github.com/Microsoft/vscode-mock-debug.git"
+    "url": "https://github.com/yuri-perceptiveautomata/DeepDebugger.git"
   },
   "bugs": {
-    "url": "https://github.com/Microsoft/vscode-mock-debug/issues"
+    "url": "https://github.com/yuri-perceptiveautomata/DeepDebugger/issues"
   },
   "scripts": {
     "vscode:prepublish": "yarn run package-ext",

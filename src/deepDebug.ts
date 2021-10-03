@@ -8,7 +8,7 @@ import {
 } from 'vscode-debugadapter';
 import * as vscode from 'vscode';
 import { DebugProtocol } from 'vscode-debugprotocol';
-import { DeepRuntime } from './mockRuntime';
+import { DeepRuntime } from './deepRuntime';
 import { Subject } from 'await-notify';
 
 import * as process from 'process';
@@ -16,7 +16,7 @@ import * as tempName from 'temp';
 import * as fs from 'fs';
 import * as net from 'net';
 import * as path from 'path';
-import { getExtensionPath } from './activateMockDebug';
+import { getExtensionPath } from './activateDeepDebug';
 
 // var temp = process.env['TEMP'];
 // if (typeof temp === 'undefined') {
@@ -39,16 +39,12 @@ function log(data: string) {
  * The interface should always match this schema.
  */
 interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
-	/** An absolute path to the "program" to debug. */
+	/** An absolute path to the program to debug. */
 	program: string;
-	/** Automatically stop target after launch. If not specified, target does not stop. */
-	stopOnEntry?: boolean;
 	/** enable logging the Debug Adapter Protocol */
 	trace?: boolean;
 	/** run without debugging */
 	noDebug?: boolean;
-	/** if specified, results in a simulated compile error in launch. */
-	compileError?: 'default' | 'show' | 'hide';
 }
 
 export class DeepDebugSession extends LoggingDebugSession {

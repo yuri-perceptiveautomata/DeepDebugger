@@ -6,8 +6,8 @@
 
 import * as vscode from 'vscode';
 import { WorkspaceFolder, DebugConfiguration, ProviderResult, CancellationToken } from 'vscode';
-import { DeepDebugSession } from './mockDebug';
-import { FileAccessor } from './mockRuntime';
+import { DeepDebugSession } from './deepDebug';
+import { FileAccessor } from './deepRuntime';
 
 var extensionPath;
 export function getExtensionPath() {
