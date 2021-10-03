@@ -15,21 +15,6 @@
 			"preLaunchTask": "npm: watch"
 		},
 		{
-			"name": "Web Extension",
-			"type": "pwa-extensionHost",
-			"debugWebWorkerHost": true,
-			"request": "launch",
-			"args": [
-				"--extensionDevelopmentPath=${workspaceFolder}",
-				"--extensionDevelopmentKind=web",
-				"${workspaceFolder}/sampleWorkspace"
-			],
-			"outFiles": [
-				"${workspaceFolder}/dist/web/**/*.js"
-			],
-			"preLaunchTask": "npm: watch-web"
-		},
-		{
 			"name": "Server",
 			"type": "node",
 			"request": "launch",

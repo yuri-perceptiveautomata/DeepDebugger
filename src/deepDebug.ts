@@ -18,20 +18,6 @@ import * as net from 'net';
 import * as path from 'path';
 import { getExtensionPath } from './activateDeepDebug';
 
-// var temp = process.env['TEMP'];
-// if (typeof temp === 'undefined') {
-// 	temp = process.env['TMP'];
-// }
-// if (typeof temp === 'undefined') {
-// 	temp = "/tmp";
-// }
-
-// var deepDbgLog = fs.openSync(path.join(temp, "deepdbg.log"), "w");
-
-function log(data: string) {
-// 	fs.writeFileSync(deepDbgLog, data + "\n");
-}
-
 /**
  * This interface describes the deep-debugger specific launch attributes
  * (which are not part of the Debug Adapter Protocol).
@@ -74,6 +60,112 @@ export class DeepDebugSession extends LoggingDebugSession {
 		this._runtime.on('end', () => {
 			this.sendEvent(new TerminatedEvent());
 		});
+	}
+
+	static deepDbgLog = -1;
+	static enableLogging = false;
+	static log(data: string) {
+		if (DeepDebugSession.enableLogging) {
+			if (DeepDebugSession.deepDbgLog === -1) {
+				DeepDebugSession.deepDbgLog = fs.openSync(path.join(tempName.dir, "deepdbg.log"), "w");
+			}
+			fs.writeFileSync(DeepDebugSession.deepDbgLog, data + "\n");
+		}
+	}
+
+	protected getLaunchConfigData(name: string) {
+		if (vscode.workspace.workspaceFolders !== undefined) {
+			let wf = vscode.workspace.workspaceFolders[0];
+			const configList = vscode.workspace.getConfiguration('launch', wf.uri).configurations;
+			for (var idx in configList) {
+				if (configList[idx].name === name) {
+					return { wf: wf, cfg: JSON.parse(JSON.stringify(configList[idx])) };
+				}
+			}
+		}
+		return null;
+	}
+
+	protected setEnvAsObject(env, vars) {
+		for (var v of vars) {
+			env[v.name] = v.value;
+		}
+	}
+
+	protected setEnvAsArray(env, vars) {
+		for (var v of vars) {
+			env.push(v);
+		}
+	}
+
+	protected getHook(mode) {
+		var hookPath = path.join(getExtensionPath(), "hooks", mode + "Hook.js");
+		return "node " + hookPath + " ";
+	}
+
+	protected launchDebugeeConfig(args: ILaunchRequestArguments) {
+
+		var tempLauncherQueuePath = path.join(tempName.dir, "deepdbg-lque-" + process.env.VSCODE_PID);
+		if (process.platform === "win32") {
+			tempLauncherQueuePath = '\\\\?\\pipe\\' + tempLauncherQueuePath;
+		}
+
+		try {
+			fs.accessSync(tempLauncherQueuePath, fs.constants.R_OK);
+			fs.unlinkSync(tempLauncherQueuePath);
+		} catch (err) {
+		}
+
+		var server = net.createServer(socket => {
+			socket.on('data', d => {
+				DeepDebugSession.log(String(d));
+				var commandArray = String(d).trim().split('|');
+				if (commandArray.length < 1) {
+					return;
+				}
+				var command = commandArray[0];
+				if (command === 'start') {
+					var param = commandArray.slice(1).join('|');
+					DeepDebugSession.log(param);
+					vscode.debug.startDebugging(undefined, JSON.parse(param));
+				}
+			});			
+		});
+		server.listen(tempLauncherQueuePath);
+
+		try {
+			var cfgData = this.getLaunchConfigData(args['launch']);
+			if (cfgData) {
+				cfgData.cfg.name = cfgData.cfg.program;
+
+				var env = [
+					{name: 'DEEPDEBUGGER_LAUNCHER_QUEUE', value: tempLauncherQueuePath},
+					{name: 'DEEPDBG_PYTHON_HOOK', value: this.getHook('python')},
+					{name: 'DEEPDBG_CPP_HOOK', value: this.getHook('cpp')}
+				];
+
+				if (cfgData.cfg.type === 'python') {
+					if (!cfgData.cfg.env) {
+						cfgData.cfg.env = new Object;
+					}
+					this.setEnvAsObject(cfgData.cfg.env, env);
+				}
+
+				if (cfgData.cfg.type === 'cppdbg') {
+					if (!cfgData.cfg.environment) {
+						cfgData.cfg.environment = new Array;
+					}
+					this.setEnvAsArray(cfgData.cfg.environment, env);
+				}
+
+				DeepDebugSession.log(JSON.stringify(cfgData));
+				vscode.debug.startDebugging(cfgData.wf, cfgData.cfg);
+			}
+		} catch (err) {
+			//
+		}
+
+		this.sendEvent(new TerminatedEvent());
 	}
 
 	/**
@@ -162,200 +254,6 @@ export class DeepDebugSession extends LoggingDebugSession {
 		// notify the launchRequest that configuration has finished
 		this._configurationDone.notify();
 	}
-/*
-	protected prepareLauncher(args: ILaunchRequestArguments): string {
-		tempName.track();
-
-		var tempLauncherQueuePath = tempName.path("deepdbg-lque-");
-		try {
-			fs.accessSync(tempLauncherQueuePath, fs.constants.R_OK);
-			fs.unlinkSync(tempLauncherQueuePath);
-		} catch (err) {
-		}
-
-		var tempLauncherPath = tempName.path("deepdbg-launcher-");
-
-		var script;
-		if (process.platform === "win32") {
-			tempLauncherPath += ".cmd";
-			script = "echo %1 %2 %3 %4 %5";
-		} else {
-			if (!deepDbgLog) {
-				deepDbgLog = fs.openSync("/home/yuri/git/somai/logs/deepdbg.log", "w");
-			}
-			child_process.execSync('mkfifo ' + tempLauncherQueuePath);
-			script =  "#!/usr/bin/env sh\n";
-			script += "# cleanup on exit, including Ctrl-C interruption\n";
-			script += `trap "echo 'stop' >${tempLauncherQueuePath}; rm -f $0" EXIT\n`;
-			script += `export DEEPDEBUGGER_LAUNCHER_QUEUE=${tempLauncherQueuePath}\n`;
-			script += "$@\n";
-		}
-
-		var fd = fs.openSync(tempLauncherPath, "w");
-		fs.writeSync(fd, script);
-		fs.closeSync(fd);
-		if (process.platform !== "win32") {
-			fs.chmodSync(tempLauncherPath, 0o777);
-		}
-
-		fd = fs.openSync(tempLauncherQueuePath, 'r+');
-		var inputStream = fs.createReadStream("", {fd});
-		log(`starting... ${tempLauncherQueuePath}`);
-		inputStream.on('data', d => {
-			var commandArray = String(d).trim().split('|');
-			log(`received: ${commandArray}`);
-			if (commandArray.length < 1) {
-				return;
-			}
-			var command = commandArray[0];
-			//console.log(`command: ${command}`);
-			if (command === 'stop') {
-				//console.log(`closing ${tempLauncherQueuePath}`);
-				inputStream.close();
-				fs.unlinkSync(tempLauncherQueuePath);
-				this.sendEvent(new TerminatedEvent());
-			}
-			if (command === 'start') {
-				vscode.debug.startDebugging(undefined, JSON.parse(commandArray[1]));
-			}
-		});
-
-		return tempLauncherPath + " " + args.program;
-	}
-*/
-
-	protected getLaunchConfigData(name: string) {
-		if (vscode.workspace.workspaceFolders !== undefined) {
-			let wf = vscode.workspace.workspaceFolders[0];
-			const configList = vscode.workspace.getConfiguration('launch', wf.uri).configurations;
-			for (var idx in configList) {
-				if (configList[idx].name === name) {
-					return { wf: wf, cfg: JSON.parse(JSON.stringify(configList[idx])) };
-				}
-			}
-		}
-		return null;
-	}
-
-	protected setPythonEnvVariables(env, vars) {
-		for (var v of vars) {
-			env[v.name] = v.value;
-		}
-	}
-
-	protected setCppEnvVariables(env, vars) {
-		for (var v of vars) {
-			env.push({name: v.name, value: v.value});
-		}
-	}
-
-	protected getCppHook() {
-		var hookPath = getExtensionPath() + "/hooks/cppHook.js";
-		return "node " + hookPath;
-// 		var tempLauncherPath = tempName.path("deepdbg-cpp-launcher-");
-// 		var script;
-// 		script =  "#!/usr/bin/env bash\n";
-// //		script += "# cleanup on exit, including Ctrl-C interruption\n";
-// //		script += "trap 'rm -f $0' EXIT\n";
-// 		script += "ARG=''\n";
-// 		script += "for var in ${@:2}\n";
-// 		script += "do\n";
-// 		script += "   if [[ \${ARG} ]]; then\n";
-// 		script += "      ARG+=,\n";
-// 		script += "   fi\n";
-// 		script += "   ARG+=\"\\\"$var\\\"\"\n";
-// 		script += "done\n";
-// 		script += "ENV=''\n";
-// 		script += "while IFS='=' read -r name value ; do\n";
-// 		script += "   if [[ \${ENV} ]]; then\n";
-// 		script += "      ENV+=,\n";
-// 		script += "   fi\n";
-// 		script += "  ENV+=\"{\\\"name\\\": \\\"${name}\\\", \\\"value\\\": \\\"${value}\\\"}\"\n";
-// 		script += "done < <(env)\n";
-// 		script += "MSG=('{' \\\n";
-// 		script += "\'\"name\":\' \"\\\"$1\\\"\",\\\n";
-// 		script += "\'\"type\":\' \'\"cppdbg\",\'\\\n";
-// 		script += "\'\"request\":\' \'\"launch\",\'\\\n";
-// 		script += "\'\"cwd\":\' \"\\\"$(pwd)\\\"\",\\\n";
-// 		script += "\'\"program\":\' \"\\\"$(pwd)/$1\\\"\",\\\n";
-// 		script += "\'\"environment\":\' \'[\'\\\n";
-// //		script += "${ENV}\\\n";
-// 		script += "\'],\'\\\n";
-// 		script += "\'\"args\":\' \'[\'\\\n";
-// 		script += "${ARG}\\\n";
-// 		script += "\']\'\\\n";
-// 		script += "\'}\')\n";
-// 		script += "echo \"start\|${MSG[@]}\" >${DEEPDEBUGGER_LAUNCHER_QUEUE}\n";
-
-// 		var fd = fs.openSync(tempLauncherPath, "w");
-// 		fs.writeSync(fd, script);
-// 		fs.closeSync(fd);
-// 		if (process.platform !== "win32") {
-// 			fs.chmodSync(tempLauncherPath, 0o777);
-// 		}
-
-// 		return tempLauncherPath;
-	}
-
-	protected launchDebugeeConfig(args: ILaunchRequestArguments) {
-
-		if (process.platform === "win32") {
-			var tempLauncherQueuePath = path.join('\\\\?\\pipe\\', process.cwd(), 'deepdbg-lque');
-		} else {
-			var tempLauncherQueuePath = tempName.path("deepdbg-lque-");
-		}
-
-		try {
-			fs.accessSync(tempLauncherQueuePath, fs.constants.R_OK);
-			fs.unlinkSync(tempLauncherQueuePath);
-		} catch (err) {
-		}
-
-		var server = net.createServer(socket => {
-			socket.on('data', d => {
-				log(String(d));
-				var commandArray = String(d).trim().split('|');
-				if (commandArray.length < 1) {
-					return;
-				}
-				var command = commandArray[0];
-				if (command === 'start') {
-					var param = commandArray.slice(1).join('|');
-					log(param);
-					vscode.debug.startDebugging(undefined, JSON.parse(param));
-				}
-			});			
-		});
-		server.listen(tempLauncherQueuePath);
-		
-		var cfgData = this.getLaunchConfigData(args['launch']);
-		if (cfgData) {
-			cfgData.cfg.name = cfgData.cfg.program;
-
-			var env = new Set;
-			env.add({name: 'DEEPDEBUGGER_LAUNCHER_QUEUE', value: tempLauncherQueuePath});
-			env.add({name: 'DEEPDBG_PYTHON_HOOK', value: "abcd"});
-			env.add({name: 'DEEPDBG_CPP_HOOK', value: this.getCppHook()});
-
-			if (cfgData.cfg.type === 'python') {
-				if (!cfgData.cfg.env) {
-					cfgData.cfg.env = new Object;
-				}
-				this.setPythonEnvVariables(cfgData.cfg.env, env);
-			}
-
-			if (cfgData.cfg.type === 'cppdbg') {
-				if (!cfgData.cfg.environment) {
-					cfgData.cfg.environment = new Array;
-				}
-				this.setCppEnvVariables(cfgData.cfg.environment, env);
-			}
-			log(JSON.stringify(cfgData));
-			vscode.debug.startDebugging(cfgData.wf, cfgData.cfg);
-		}
-
-		this.sendEvent(new TerminatedEvent());
-	}
 
 	protected async launchRequest(response: DebugProtocol.LaunchResponse, args: ILaunchRequestArguments) {
 
@@ -391,4 +289,3 @@ export class DeepDebugSession extends LoggingDebugSession {
 		super.customRequest(command, response, args);
 	}
 }
-

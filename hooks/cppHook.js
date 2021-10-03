@@ -9,7 +9,7 @@ if (queueName) {
         cwd: process.cwd(),
         program: path.join(process.cwd(), process.argv[2]),
         environment: new Array,
-        externalConsole: false,
+        console: "integratedTerminal",
         args: process.argv.slice(3)
     };
     for (var e in process.env) {
