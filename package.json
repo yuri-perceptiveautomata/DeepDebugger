@@ -68,9 +68,7 @@
   "activationEvents": [
     "onDebugResolve:deepdbg",
     "onDebugDynamicConfigurations:deepdbg",
-    "onCommand:extension.deep-debugger.getProgramName",
-    "onCommand:extension.deep-debugger.runEditorContents",
-    "onCommand:extension.deep-debugger.debugEditorContents"
+    "onCommand:extension.deep-debugger.getProgramName"
   ],
   "workspaceTrust": {
     "request": "never"
@@ -159,27 +157,26 @@
         },
         "initialConfigurations": [
           {
+            "name": "Deep Debug",
             "type": "deepdbg",
             "request": "launch",
-            "name": "Ask for name",
-            "launch": "${command:AskForProgramName}"
+            "launch": "<name of a configuration to launch>",
+            "trace": true
           }
         ],
         "configurationSnippets": [
           {
-            "label": "Deep Debug: Launch",
+            "label": "Deep Debug",
             "description": "A new configuration for deep debugging.",
             "body": {
+              "name": "Deep Debug",
               "type": "deepdbg",
               "request": "launch",
-              "name": "Ask for name",
-              "launch": "^\"\\${command:AskForProgramName}\""
-            }
+              "launch": "<name of a configuration to launch>",
+               "trace": true
+              }
           }
-        ],
-        "variables": {
-          "AskForProgramName": "extension.deep-debugger.getProgramName"
-        }
+        ]
       }
     ]
   }

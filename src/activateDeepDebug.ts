@@ -19,39 +19,12 @@ export function activateDeepDebug(context: vscode.ExtensionContext, factory?: vs
 
 	extensionPath = context.asAbsolutePath("");
 
-	context.subscriptions.push(
-		vscode.commands.registerCommand('extension.deep-debugger.runEditorContents', (resource: vscode.Uri) => {
-			let targetResource = resource;
-			if (!targetResource && vscode.window.activeTextEditor) {
-				targetResource = vscode.window.activeTextEditor.document.uri;
-			}
-			if (targetResource) {
-				vscode.debug.startDebugging(undefined, {
-						type: 'deepdbg',
-						name: 'Run File',
-						request: 'launch',
-						program: targetResource.fsPath
-					},
-					{ noDebug: true }
-				);
-			}
-		}),
-		vscode.commands.registerCommand('extension.deep-debugger.debugEditorContents', (resource: vscode.Uri) => {
-			let targetResource = resource;
-			if (!targetResource && vscode.window.activeTextEditor) {
-				targetResource = vscode.window.activeTextEditor.document.uri;
-			}
-			if (targetResource) {
-				vscode.debug.startDebugging(undefined, {
-					type: 'deepdbg',
-					name: 'Debug File',
-					request: 'launch',
-					program: targetResource.fsPath,
-					stopOnEntry: true
-				});
-			}
-		})
-	);
+	context.subscriptions.push(vscode.commands.registerCommand('extension.deep-debugger.getProgramName', config => {
+		return vscode.window.showInputBox({
+			placeHolder: "Please enter the configuration name to launch",
+			value: ""
+		});
+	}));
 
 	// register a configuration provider for 'deepdbg' debug type
 	const provider = new DeepConfigurationProvider();
@@ -90,16 +63,16 @@ class DeepConfigurationProvider implements vscode.DebugConfigurationProvider {
 		if (!config.type && !config.request && !config.name) {
 			const editor = vscode.window.activeTextEditor;
 			if (editor) {
+				config.name = 'Deep Debug';
 				config.type = 'deepdbg';
-				config.name = 'Launch';
 				config.request = 'launch';
-				config.program = '${file}';
-				config.stopOnEntry = true;
+				config.trace = true;
+				config['launch'] = "<name of a configuration to launch>";
 			}
 		}
 
 		if (!checkLaunchConfig(config)) {
-			return vscode.window.showInformationMessage("Cannot find a program to debug").then(_ => {
+			return vscode.window.showInformationMessage("Cannot find a start configuration. Please use \"launch\": \"<name of a configuration to launch>\".").then(_ => {
 				return undefined;	// abort launch
 			});
 		}
