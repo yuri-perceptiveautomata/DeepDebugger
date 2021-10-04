@@ -74,12 +74,13 @@ export class DeepDebugSession extends LoggingDebugSession {
 	}
 
 	protected getLaunchConfigData(name: string) {
-		if (vscode.workspace.workspaceFolders !== undefined) {
+		if (vscode.workspace.workspaceFolders) {
 			let wf = vscode.workspace.workspaceFolders[0];
 			const configList = vscode.workspace.getConfiguration('launch', wf.uri).configurations;
 			for (var idx in configList) {
 				if (configList[idx].name === name) {
-					return { wf: wf, cfg: JSON.parse(JSON.stringify(configList[idx])) };
+					var json = JSON.stringify(configList[idx]);
+					return { wf: wf, cfg: JSON.parse(json) };
 				}
 			}
 		}
@@ -140,8 +141,8 @@ export class DeepDebugSession extends LoggingDebugSession {
 
 				var env = [
 					{name: 'DEEPDEBUGGER_LAUNCHER_QUEUE', value: tempLauncherQueuePath},
-					{name: 'DEEPDBG_PYTHON_HOOK', value: this.getHook('python')},
-					{name: 'DEEPDBG_CPP_HOOK', value: this.getHook('cpp')}
+					{name: args['pythonHook']??'DEEPDBG_PYTHON_HOOK', value: this.getHook('python')},
+					{name: args['cppHook']??'DEEPDBG_CPP_HOOK', value: this.getHook('cpp')}
 				];
 
 				if (cfgData.cfg.type === 'python') {
