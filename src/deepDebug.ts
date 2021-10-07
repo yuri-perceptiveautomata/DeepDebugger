@@ -142,21 +142,20 @@ export class DeepDebugSession extends LoggingDebugSession {
 				var env = [
 					{name: 'DEEPDEBUGGER_LAUNCHER_QUEUE', value: tempLauncherQueuePath},
 					{name: args['pythonHook']??'DEEPDBG_PYTHON_HOOK', value: this.getHook('python')},
-					{name: args['cppHook']??'DEEPDBG_CPP_HOOK', value: this.getHook('cpp')}
+					{name: args['cppHook']??'DEEPDBG_CPP_HOOK', value: this.getHook('cpp')},
+					{name: args['bashHook']??'DEEPDBG_BASH_HOOK', value: this.getHook('bash')},
 				];
-
-				if (cfgData.cfg.type === 'python') {
-					if (!cfgData.cfg.env) {
-						cfgData.cfg.env = new Object;
-					}
-					this.setEnvAsObject(cfgData.cfg.env, env);
-				}
 
 				if (cfgData.cfg.type === 'cppdbg') {
 					if (!cfgData.cfg.environment) {
 						cfgData.cfg.environment = new Array;
 					}
 					this.setEnvAsArray(cfgData.cfg.environment, env);
+				} else {
+					if (!cfgData.cfg.env) {
+						cfgData.cfg.env = new Object;
+					}
+					this.setEnvAsObject(cfgData.cfg.env, env);
 				}
 
 				DeepDebugSession.log(JSON.stringify(cfgData));
