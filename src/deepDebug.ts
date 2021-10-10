@@ -4,11 +4,10 @@
 
 import {
 	Logger, logger, LoggingDebugSession,
-	InitializedEvent, TerminatedEvent, Thread
+	InitializedEvent, TerminatedEvent
 } from 'vscode-debugadapter';
 import * as vscode from 'vscode';
 import { DebugProtocol } from 'vscode-debugprotocol';
-import { DeepRuntime } from './deepRuntime';
 import { Subject } from 'await-notify';
 
 import * as process from 'process';
@@ -17,6 +16,12 @@ import * as fs from 'fs';
 import * as net from 'net';
 import * as path from 'path';
 import { getExtensionPath } from './activateDeepDebug';
+
+const envNameSessionId = 'DEEPDEBUGGER_SESSION_ID';
+const propNameSessionId = 'deepDbgSessionID';
+const propNameParentSessionId = 'deepDbgParentSessionID';
+
+type Environment = Array<{name: string, value: string|undefined}>;
 
 /**
  * This interface describes the deep-debugger specific launch attributes
@@ -36,14 +41,10 @@ interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
 export class DeepDebugSession extends LoggingDebugSession {
 
 	// we don't support multiple threads, so we can use a hardcoded ID for the default thread
-	private static threadID = 1;
-
-	// a Deep runtime (or debugger)
-	private _runtime: DeepRuntime;
+	private static sessionID = 0;
+	private static sessionDict = new Map<string, vscode.DebugSession>();
 
 	private _configurationDone = new Subject();
-
-	private _cancellationTokens = new Map<number, boolean>();
 
 	/**
 	 * Creates a new debug adapter that is used for one debug session.
@@ -52,13 +53,23 @@ export class DeepDebugSession extends LoggingDebugSession {
 	public constructor() {
 		super("deep-debugger.txt");
 
-		// this debugger uses zero-based lines and columns
-		this.setDebuggerLinesStartAt1(false);
-		this.setDebuggerColumnsStartAt1(false);
+		vscode.debug.onDidStartDebugSession(session => {
+			if (session.configuration.hasOwnProperty(propNameSessionId)) {
+				DeepDebugSession.sessionDict[session.configuration[propNameSessionId]] = session;
+			}
+		});
 
-		this._runtime = new DeepRuntime();
-		this._runtime.on('end', () => {
-			this.sendEvent(new TerminatedEvent());
+		vscode.debug.onDidTerminateDebugSession(session => {
+			if (session.configuration.hasOwnProperty(propNameSessionId)) {
+				delete DeepDebugSession.sessionDict[session.configuration[propNameSessionId]];
+			}
+			if (session.configuration.hasOwnProperty('deepDbgHookPipe')) {
+				var client = new net.Socket();
+				client.connect(session.configuration.deepDbgHookPipe, function() {
+					client.write('stopped');
+					client.destroy();
+				});
+			}
 		});
 	}
 
@@ -73,8 +84,8 @@ export class DeepDebugSession extends LoggingDebugSession {
 		}
 	}
 
-	protected getLaunchConfigData(name: string) {
-		if (vscode.workspace.workspaceFolders) {
+	protected getLaunchConfigData(name: string | object) {
+		if (typeof name === 'string' && vscode.workspace.workspaceFolders) {
 			let wf = vscode.workspace.workspaceFolders[0];
 			const configList = vscode.workspace.getConfiguration('launch', wf.uri).configurations;
 			for (var idx in configList) {
@@ -104,6 +115,32 @@ export class DeepDebugSession extends LoggingDebugSession {
 		return "node " + hookPath + " ";
 	}
 
+	protected setConfigEnvironment(cfg, env: Environment) {
+		cfg[propNameSessionId] = String(DeepDebugSession.sessionID++);
+		var cfgEnv: Environment = new Array;
+		this.setEnvAsArray(cfgEnv, env);
+
+		const found = cfgEnv.find(e => e.name === envNameSessionId);
+		if (found) {
+			found.value = cfg[propNameSessionId];
+		} else {
+			cfgEnv.push({name: envNameSessionId, value: cfg[propNameSessionId]});
+		}
+
+		if (cfg.type === 'cppdbg' || cfg.type === 'cppvsdbg') {
+			if (!cfg.environment) {
+				cfg.environment = new Array;
+			}
+			this.setEnvAsArray(cfg.environment, cfgEnv);
+		} else {
+			if (!cfg.env) {
+				cfg.env = new Object;
+			}
+			this.setEnvAsObject(cfg.env, cfgEnv);
+			delete cfg.environment;
+		}
+	}
+
 	protected launchDebugeeConfig(args: ILaunchRequestArguments) {
 
 		var tempLauncherQueuePath = path.join(tempName.dir, "deepdbg-lque-" + process.env.VSCODE_PID);
@@ -128,39 +165,53 @@ export class DeepDebugSession extends LoggingDebugSession {
 				if (command === 'start') {
 					var param = commandArray.slice(1).join('|');
 					DeepDebugSession.log(param);
-					vscode.debug.startDebugging(undefined, JSON.parse(param));
+					var cfg = JSON.parse(param);
+					var env = cfg.environment;
+					cfg.environment = new Array;
+					this.setConfigEnvironment(cfg, env);
+					var parentSession: vscode.DebugSession | undefined;
+					if (cfg.hasOwnProperty(propNameParentSessionId)) {
+						parentSession = DeepDebugSession.sessionDict[cfg[propNameParentSessionId]];
+					}
+					vscode.debug.startDebugging(undefined, cfg, parentSession);
 				}
-			});			
+			});
 		});
 		server.listen(tempLauncherQueuePath);
 
 		try {
-			var cfgData = this.getLaunchConfigData(args['launch']);
-			if (cfgData) {
+			var launch = args['launch'];
+			var env = [
+				{name: 'DEEPDEBUGGER_LAUNCHER_QUEUE', value: tempLauncherQueuePath},
+				{name: args['pythonHook']??'DEEPDBG_PYTHON_HOOK', value: this.getHook('python')},
+				{name: args['cppHook']??'DEEPDBG_CPP_HOOK', value: this.getHook('cpp')},
+				{name: args['bashHook']??'DEEPDBG_BASH_HOOK', value: this.getHook('bash')},
+			];
+
+			var cfgData = this.getLaunchConfigData(launch);
+			if (!cfgData) {
+				// const cp = require('child_process');
+				// var exec_env = process.env;
+				// this.setEnvAsObject(exec_env, env);
+				// cp.exec(launch, {env: exec_env});
+				var terminalName = "Deep Debugger";
+				var terminal = vscode.window.terminals.find(t => t.name === terminalName);
+				terminal?.dispose();
+				terminal = vscode.window.createTerminal(terminalName);
+				terminal.show();
+				var setCmd = process.platform === 'win32' ? "set" : "export";
+				for (var v of env) {
+					terminal.sendText(setCmd + " " + v.name + "=\"" + v.value + "\"");
+				}
+				terminal.sendText(launch);
+			} else {
 				cfgData.cfg.name = cfgData.cfg.program;
 
-				var env = [
-					{name: 'DEEPDEBUGGER_LAUNCHER_QUEUE', value: tempLauncherQueuePath},
-					{name: args['pythonHook']??'DEEPDBG_PYTHON_HOOK', value: this.getHook('python')},
-					{name: args['cppHook']??'DEEPDBG_CPP_HOOK', value: this.getHook('cpp')},
-					{name: args['bashHook']??'DEEPDBG_BASH_HOOK', value: this.getHook('bash')},
-				];
-
-				if (cfgData.cfg.type === 'cppdbg') {
-					if (!cfgData.cfg.environment) {
-						cfgData.cfg.environment = new Array;
-					}
-					this.setEnvAsArray(cfgData.cfg.environment, env);
-				} else {
-					if (!cfgData.cfg.env) {
-						cfgData.cfg.env = new Object;
-					}
-					this.setEnvAsObject(cfgData.cfg.env, env);
-				}
+				this.setConfigEnvironment(cfgData.cfg, env);
 
 				DeepDebugSession.log(JSON.stringify(cfgData));
 				vscode.debug.startDebugging(cfgData.wf, cfgData.cfg);
-			}
+		}
 		} catch (err) {
 			//
 		}
@@ -267,25 +318,5 @@ export class DeepDebugSession extends LoggingDebugSession {
 		this.launchDebugeeConfig(args);
 
 		this.sendResponse(response);
-	}
-
-	protected threadsRequest(response: DebugProtocol.ThreadsResponse): void {
-
-		// runtime supports no threads so just return a default thread.
-		response.body = {
-			threads: [
-				new Thread(DeepDebugSession.threadID, "thread 1")
-			]
-		};
-		this.sendResponse(response);
-	}
-	protected cancelRequest(response: DebugProtocol.CancelResponse, args: DebugProtocol.CancelArguments) {
-		if (args.requestId) {
-			this._cancellationTokens.set(args.requestId, true);
-		}
-	}
-
-	protected customRequest(command: string, response: DebugProtocol.Response, args: any) {
-		super.customRequest(command, response, args);
 	}
 }

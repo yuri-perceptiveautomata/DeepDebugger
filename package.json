@@ -130,9 +130,6 @@
     "debuggers": [
       {
         "type": "deepdbg",
-        "languages": [
-          "markdown"
-        ],
         "label": "Deep Debugger",
         "program": "./out/debugAdapter.js",
         "runtime": "node",

@@ -1,41 +1,56 @@
-function cppEnvironment(msg) {
-    delete msg.env;
-    msg.environment = new Array;
-    for (var e in process.env) {
-        msg.environment.push({name: e, value: process.env[e]});
-    }
-};
 
-function startDebugSession(type, cb) {
+function startDebugSession(type) {
     var process = require('process');
     var queueName = process.env['DEEPDEBUGGER_LAUNCHER_QUEUE'];
     if (queueName) {
-        var path = require('path');
-        var hookPath = process.argv[2];
-        var msg = {
-            name: path.basename(hookPath),
-            type: type,
-            request: "launch",
-            cwd: process.cwd(),
-            program: path.isAbsolute(hookPath) ? hookPath : path.join(process.cwd(), hookPath),
-            env: process.env,
-            console: "integratedTerminal",
-            args: process.argv.slice(3)
-        };
-
-        if (cb) {
-            cb(msg);
-        }
-
-        var strMsg = "start|" + JSON.stringify(msg);
-
         var net = require('net');
-        var client = new net.Socket();
-        client.connect(queueName, function() {
-            client.write(strMsg);
-            client.destroy();
+        var sender = new net.Socket();
+        sender.connect(queueName, function() {
+            var path = require('path');
+            var hookPath = process.argv[2];
+            var msg = {
+                name: path.basename(hookPath),
+                type: type,
+                request: "launch",
+                cwd: process.cwd(),
+                program: path.isAbsolute(hookPath) ? hookPath : path.join(process.cwd(), hookPath),
+                console: "integratedTerminal",
+                args: process.argv.slice(3)
+            };
+    
+            msg.environment = new Array;
+            for (var e in process.env) {
+                msg.environment.push({name: e, value: process.env[e]});
+            }
+            
+            var temp = require('temp');
+            msg.deepDbgHookPipe = path.join(temp.dir, temp.path("deepdbg-hque-"));
+            if (process.platform === "win32") {
+                msg.deepDbgHookPipe = '\\\\?\\pipe\\' + msg.deepDbgHookPipe;
+            }
+
+            msg.deepDbgParentSessionID = process.env['DEEPDEBUGGER_SESSION_ID'];
+
+            var net = require('net');
+            var listener = net.createServer(socket => {
+                socket.on('data', d => {
+                    var command = String(d).trim();
+                    if (command === 'stopped') {
+                        listener.destroy();
+                        // if (process.platform !== "win32") {
+                        //     var fs = require('fs');
+                        //     fs.unlink();
+                        // }
+                    }
+                });
+            });
+            listener.listen(msg.deepDbgHookPipe);
+
+            var strMsg = "start|" + JSON.stringify(msg);
+            sender.write(strMsg);
+            sender.destroy();
         });
     }
 };
 
-module.exports = {startDebugSession, cppEnvironment};
+module.exports = {startDebugSession};

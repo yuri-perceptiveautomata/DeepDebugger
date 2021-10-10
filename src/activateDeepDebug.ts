@@ -7,7 +7,6 @@
 import * as vscode from 'vscode';
 import { WorkspaceFolder, DebugConfiguration, ProviderResult, CancellationToken } from 'vscode';
 import { DeepDebugSession } from './deepDebug';
-import { FileAccessor } from './deepRuntime';
 
 var extensionPath;
 export function getExtensionPath() {
@@ -27,7 +26,7 @@ export function activateDeepDebug(context: vscode.ExtensionContext, factory?: vs
 	}));
 
 	// register a configuration provider for 'deepdbg' debug type
-	const provider = new DeepConfigurationProvider();
+	const provider = new DeepDbgConfigurationProvider();
 	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('deepdbg', provider));
 
 	if (!factory) {
@@ -47,11 +46,15 @@ function checkLaunchConfig(config: DebugConfiguration): boolean {
 				return true;
 			}
 		}
+	} else if (Array.isArray(config.launch)) {
+		// we asume the array contains parts of a command line
+		//TBD: return false if the command line is invalid or not executable
+		return true;
 	}
 	return false;
 }
 
-class DeepConfigurationProvider implements vscode.DebugConfigurationProvider {
+class DeepDbgConfigurationProvider implements vscode.DebugConfigurationProvider {
 
 	/**
 	 * Massage a debug configuration just before a debug session is being launched,
@@ -80,26 +83,6 @@ class DeepConfigurationProvider implements vscode.DebugConfigurationProvider {
 		return config;
 	}
 }
-
-export const workspaceFileAccessor: FileAccessor = {
-	async readFile(path: string) {
-		try {
-			const uri = vscode.Uri.file(path);
-			const bytes = await vscode.workspace.fs.readFile(uri);
-			const contents = Buffer.from(bytes).toString('utf8');
-			return contents;
-		} catch(e) {
-			try {
-				const uri = vscode.Uri.parse(path);
-				const bytes = await vscode.workspace.fs.readFile(uri);
-				const contents = Buffer.from(bytes).toString('utf8');
-				return contents;
-			} catch (e) {
-				return `cannot read '${path}'`;
-			}
-		}
-	}
-};
 
 class InlineDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
 
