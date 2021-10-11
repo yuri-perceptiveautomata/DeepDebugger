@@ -15,11 +15,13 @@ import * as tempName from 'temp';
 import * as fs from 'fs';
 import * as net from 'net';
 import * as path from 'path';
+import { randomBytes } from 'crypto';
 import { getExtensionPath } from './activateDeepDebug';
 
 const envNameSessionId = 'DEEPDEBUGGER_SESSION_ID';
 const propNameSessionId = 'deepDbgSessionID';
 const propNameParentSessionId = 'deepDbgParentSessionID';
+const debugSessionsHierarchy = 'debugSessionsHierarchy';
 
 type Environment = Array<{name: string, value: string|undefined}>;
 
@@ -43,6 +45,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 	// we don't support multiple threads, so we can use a hardcoded ID for the default thread
 	private static sessionID = 0;
 	private static sessionDict = new Map<string, vscode.DebugSession>();
+	private static useHierarchy = false;
 
 	private _configurationDone = new Subject();
 
@@ -110,8 +113,8 @@ export class DeepDebugSession extends LoggingDebugSession {
 		}
 	}
 
-	protected getHook(mode) {
-		var hookPath = path.join(getExtensionPath(), "hooks", mode + "Hook.js");
+	protected getHook(mode, block: boolean = true) {
+		var hookPath = path.join(getExtensionPath(), "hooks", mode + "Hook" + (block? "" : "NB") + ".js");
 		return "node " + hookPath + " ";
 	}
 
@@ -143,7 +146,8 @@ export class DeepDebugSession extends LoggingDebugSession {
 
 	protected launchDebugeeConfig(args: ILaunchRequestArguments) {
 
-		var tempLauncherQueuePath = path.join(tempName.dir, "deepdbg-lque-" + process.env.VSCODE_PID);
+		const pipeName = args['messageQueueName']??("deepdbg-lque-" + randomBytes(10).toString('hex'));
+		var tempLauncherQueuePath = path.join(tempName.dir, pipeName);
 		if (process.platform === "win32") {
 			tempLauncherQueuePath = '\\\\?\\pipe\\' + tempLauncherQueuePath;
 		}
@@ -153,6 +157,8 @@ export class DeepDebugSession extends LoggingDebugSession {
 			fs.unlinkSync(tempLauncherQueuePath);
 		} catch (err) {
 		}
+
+		DeepDebugSession.useHierarchy = args[debugSessionsHierarchy] ?? false;
 
 		var server = net.createServer(socket => {
 			socket.on('data', d => {
@@ -170,8 +176,10 @@ export class DeepDebugSession extends LoggingDebugSession {
 					cfg.environment = new Array;
 					this.setConfigEnvironment(cfg, env);
 					var parentSession: vscode.DebugSession | undefined;
-					if (cfg.hasOwnProperty(propNameParentSessionId)) {
-						parentSession = DeepDebugSession.sessionDict[cfg[propNameParentSessionId]];
+					if (DeepDebugSession.useHierarchy) {
+						if (cfg.hasOwnProperty(propNameParentSessionId)) {
+							parentSession = DeepDebugSession.sessionDict[cfg[propNameParentSessionId]];
+						}
 					}
 					vscode.debug.startDebugging(undefined, cfg, parentSession);
 				}
@@ -183,9 +191,12 @@ export class DeepDebugSession extends LoggingDebugSession {
 			var launch = args['launch'];
 			var env = [
 				{name: 'DEEPDEBUGGER_LAUNCHER_QUEUE', value: tempLauncherQueuePath},
-				{name: args['pythonHook']??'DEEPDBG_PYTHON_HOOK', value: this.getHook('python')},
-				{name: args['cppHook']??'DEEPDBG_CPP_HOOK', value: this.getHook('cpp')},
-				{name: args['bashHook']??'DEEPDBG_BASH_HOOK', value: this.getHook('bash')},
+				{name: args['pythonHook']??'DEEPDBG_PYTHON', value: this.getHook('python')},
+				{name: args['cppHook']??'DEEPDBG_CPP', value: this.getHook('cpp')},
+				{name: args['cppHookNoBlock']??'DEEPDBG_CPP_NB', value: this.getHook('cpp', false)},
+				{name: args['bashHook']??'DEEPDBG_BASH', value: this.getHook('bash')},
+				{name: args['bashHookNoBlock']??'DEEPDBG_BASH_NB', value: this.getHook('bash', false)},
+				{name: args['spawnHook']??'DEEPDBG_SPAWN', value: this.getHook('spawn')},
 			];
 
 			var cfgData = this.getLaunchConfigData(launch);

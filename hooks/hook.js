@@ -1,5 +1,5 @@
 
-function startDebugSession(type) {
+function startDebugSession(type, block = true) {
     var process = require('process');
     var queueName = process.env['DEEPDEBUGGER_LAUNCHER_QUEUE'];
     if (queueName) {
@@ -23,28 +23,24 @@ function startDebugSession(type) {
                 msg.environment.push({name: e, value: process.env[e]});
             }
             
-            var temp = require('temp');
-            msg.deepDbgHookPipe = path.join(temp.dir, temp.path("deepdbg-hque-"));
-            if (process.platform === "win32") {
-                msg.deepDbgHookPipe = '\\\\?\\pipe\\' + msg.deepDbgHookPipe;
-            }
-
             msg.deepDbgParentSessionID = process.env['DEEPDEBUGGER_SESSION_ID'];
 
-            var net = require('net');
-            var listener = net.createServer(socket => {
-                socket.on('data', d => {
-                    var command = String(d).trim();
-                    if (command === 'stopped') {
-                        listener.destroy();
-                        // if (process.platform !== "win32") {
-                        //     var fs = require('fs');
-                        //     fs.unlink();
-                        // }
-                    }
+            if (block) {
+                msg.deepDbgHookPipe = queueName + "." + msg.deepDbgParentSessionID;
+                var listener = net.createServer(socket => {
+                    socket.on('data', d => {
+                        var command = String(d).trim();
+                        if (command === 'stopped') {
+                            listener.destroy();
+                            // if (process.platform !== "win32") {
+                            //     var fs = require('fs');
+                            //     fs.unlink();
+                            // }
+                        }
+                    });
                 });
-            });
-            listener.listen(msg.deepDbgHookPipe);
+                listener.listen(msg.deepDbgHookPipe);
+            }
 
             var strMsg = "start|" + JSON.stringify(msg);
             sender.write(strMsg);
