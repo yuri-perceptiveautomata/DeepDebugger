@@ -188,7 +188,6 @@ export class DeepDebugSession extends LoggingDebugSession {
 		server.listen(tempLauncherQueuePath);
 
 		try {
-			var launch = args['launch'];
 			var env = [
 				{name: 'DEEPDEBUGGER_LAUNCHER_QUEUE', value: tempLauncherQueuePath},
 				{name: args['pythonHook']??'DEEPDBG_PYTHON', value: this.getHook('python')},
@@ -198,7 +197,11 @@ export class DeepDebugSession extends LoggingDebugSession {
 				{name: args['bashHookNoBlock']??'DEEPDBG_BASH_NB', value: this.getHook('bash', false)},
 				{name: args['spawnHook']??'DEEPDBG_SPAWN', value: this.getHook('spawn')},
 			];
+			if (args.hasOwnProperty('environment')) {
+				env = env.concat(args['environment']);
+			}
 
+			var launch = args['launch'];
 			var cfgData = this.getLaunchConfigData(launch);
 			if (!cfgData) {
 				// const cp = require('child_process');
@@ -214,7 +217,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 				for (var v of env) {
 					terminal.sendText(setCmd + " " + v.name + "=\"" + v.value + "\"");
 				}
-				terminal.sendText(launch);
+				terminal.sendText(launch.join(' '));
 			} else {
 				cfgData.cfg.name = cfgData.cfg.program;
 

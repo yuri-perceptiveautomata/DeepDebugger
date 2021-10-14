@@ -140,7 +140,6 @@
             ],
             "properties": {
               "launch": {
-                "type": "string",
                 "description": "Name of configuration to launch",
                 "default": ""
               },
