@@ -47,7 +47,7 @@ function startDebugSession(type, block = true) {
                     socket.on('data', d => {
                         var command = String(d).trim();
                         if (command === 'stopped') {
-                            listener.destroy();
+                            listener.close();
                             // if (process.platform !== "win32") {
                             //     var fs = require('fs');
                             //     fs.unlink();
