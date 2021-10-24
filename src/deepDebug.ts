@@ -113,9 +113,41 @@ export class DeepDebugSession extends LoggingDebugSession {
 		}
 	}
 
+	protected findNode(dir) {
+		var binPath = path.join(getExtensionPath(), dir);
+		var binPathFiles = fs.readdirSync(binPath);
+		var isNode = function (f) {
+			if (process.platform === "win32") {
+				return f.toLowerCase() === 'node.exe';
+			} else {
+				return f === 'node';
+			}
+		};
+		for (var b of binPathFiles) {
+			var binDir = path.join(binPath, b);
+			if (fs.lstatSync(binDir).isDirectory()) {
+				var files = fs.readdirSync(binDir);
+				for (var file of files) {
+					if (isNode(file)) {
+						return path.join(binDir, file);
+					}
+				}
+			}
+		}
+		return "";
+	}
+
 	protected getHook(mode, block: boolean = true) {
-		var hookPath = path.join(getExtensionPath(), "hooks", mode + "Hook" + (block? "" : "NB") + ".js");
-		return "node " + hookPath + " ";
+		var nodePath = 'node';
+		var isNodeAvailable = require('hasbin').sync(nodePath);
+		if (!isNodeAvailable) {
+			nodePath = this.findNode("../../bin");
+		}
+		if (nodePath) {
+			var hookPath = path.join(getExtensionPath(), "hooks", mode + "Hook" + (block? "" : "NB") + ".js");
+			return nodePath + " " + hookPath + " ";
+		}
+		return '';
 	}
 
 	protected setConfigEnvironment(cfg, env: Environment) {

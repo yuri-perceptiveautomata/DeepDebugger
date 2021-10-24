@@ -45,7 +45,8 @@
     "net": "^1.0.2",
     "temp": "^0.9.4",
     "vscode-debugadapter": "^1.49.0",
-    "vscode-test": "^1.6.1"
+    "vscode-test": "^1.6.1",
+    "hasbin": "^1.2.0"
   },
   "devDependencies": {
     "@types/glob": "^7.1.4",

@@ -1,10 +1,18 @@
-function startDebugSession(type, block = true) {
+
+function startDebugSession(type, block = true, beforeSessionCreate = (session, msg) => {}, onSessionStarted = (session) => {}) {
     var process = require('process');
     var queueName = process.env['DEEPDEBUGGER_LAUNCHER_QUEUE'];
-    if (queueName) {
+    parentSessionID = process.env['DEEPDEBUGGER_SESSION_ID'];
+    var session = {
+        process: process,
+        parentSessionID: parentSessionID,
+        launcherQueue: queueName,
+        hookQueue: queueName + "." + parentSessionID
+    };
+    if (session.launcherQueue) {
         var net = require('net');
         var sender = new net.Socket();
-        sender.connect(queueName, function() {
+        sender.connect(session.launcherQueue, function() {
             var fs = require('fs');
             var path = require('path');
             var programPath = process.argv[2];
@@ -39,14 +47,18 @@ function startDebugSession(type, block = true) {
                 msg.environment.push({name: e, value: process.env[e]});
             }
             
-            msg.deepDbgParentSessionID = process.env['DEEPDEBUGGER_SESSION_ID'];
+            msg.deepDbgParentSessionID = session.parentSessionID;
 
             if (block) {
-                msg.deepDbgHookPipe = queueName + "." + msg.deepDbgParentSessionID;
+                msg.deepDbgHookPipe = session.hookQueue;
                 var listener = net.createServer(socket => {
                     socket.on('data', d => {
                         var command = String(d).trim();
-                        if (command === 'stopped') {
+                        if (command.substring(0,7) === 'started') {
+                            if (onSessionStarted) {
+                                onSessionStarted(session);
+                            }
+                        } else if (command === 'stopped') {
                             listener.close();
                             // if (process.platform !== "win32") {
                             //     var fs = require('fs');
@@ -55,7 +67,11 @@ function startDebugSession(type, block = true) {
                         }
                     });
                 });
-                listener.listen(msg.deepDbgHookPipe);
+                listener.listen(session.hookQueue);
+            }
+
+            if (beforeSessionCreate) {
+                beforeSessionCreate(session, msg);
             }
 
             var strMsg = "start|" + JSON.stringify(msg);
