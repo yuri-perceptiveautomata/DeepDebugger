@@ -20,7 +20,6 @@ function beforeSessionCreate(session, msg) {
             }
         ];
     }
-    msg.externalConsole = false;
     msg.stopAtEntry = false;
 }
 

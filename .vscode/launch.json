@@ -2,6 +2,21 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
+			"name": "CppHook",
+			"type": "node",
+			"request": "launch",
+			"program": "${workspaceFolder}/hooks/cppHook.js",
+			"env": {
+				"DEEPDEBUGGER_LAUNCHER_QUEUE": "\\\\?\\pipe\\C:\\Users\\yu_ge\\AppData\\Local\\Temp\\deepdbgQueue",
+				"DEEPDEBUGGER_SESSION_ID": "1234"
+			},
+			"args": [
+				"test.exe", "\"CameraCenter;Input;FrameImage:None;xxx.yyy\"", "abcd"
+//				"sampleWorkspace/test.exe",
+//				"aaa"
+			]
+		},
+		{
 			"name": "Extension",
 			"type": "extensionHost",
 			"request": "launch",
@@ -45,6 +60,16 @@
 			],
 			"internalConsoleOptions": "openOnSessionStart",
 			"preLaunchTask": "npm: compile"
+		},
+		{
+			"name": "JS test",
+			"type": "pwa-node",
+			"request": "launch",
+			"cwd": "${workspaceFolder}",
+			"program": "test.js",
+			"args": [
+			],
+			"internalConsoleOptions": "openOnSessionStart",
 		}
 	],
 	"compounds": [

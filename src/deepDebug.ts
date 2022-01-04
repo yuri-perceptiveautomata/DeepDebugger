@@ -113,8 +113,13 @@ export class DeepDebugSession extends LoggingDebugSession {
 		}
 	}
 
-	protected findNode(dir) {
-		var binPath = path.join(getExtensionPath(), dir);
+	protected findNode() {
+		var nodePath = 'node';
+		var isNodeAvailable = require('hasbin').sync(nodePath);
+		if (isNodeAvailable) {
+			return nodePath;
+		}
+		var binPath = path.join(getExtensionPath(), "../../bin");
 		var binPathFiles = fs.readdirSync(binPath);
 		var isNode = function (f) {
 			if (process.platform === "win32") {
@@ -137,14 +142,15 @@ export class DeepDebugSession extends LoggingDebugSession {
 		return "";
 	}
 
+	protected getHookPath(mode, block: boolean = true) {
+		var hookPath = path.join(getExtensionPath(), "hooks", mode + "Hook" + (block? "" : "NB") + ".js");
+		return hookPath;
+	}
+
 	protected getHook(mode, block: boolean = true) {
-		var nodePath = 'node';
-		var isNodeAvailable = require('hasbin').sync(nodePath);
-		if (!isNodeAvailable) {
-			nodePath = this.findNode("../../bin");
-		}
+		var nodePath = this.findNode();
 		if (nodePath) {
-			var hookPath = path.join(getExtensionPath(), "hooks", mode + "Hook" + (block? "" : "NB") + ".js");
+			var hookPath = this.getHookPath(mode, block);
 			return nodePath + " " + hookPath + " ";
 		}
 		return '';
@@ -253,11 +259,40 @@ export class DeepDebugSession extends LoggingDebugSession {
 			} else {
 				cfgData.cfg.name = cfgData.cfg.program;
 
+				if (cfgData.cfg.type === 'python' && cfgData.cfg.request === 'launch') {
+					const pythonSettings = vscode.workspace.getConfiguration('python');
+					var oldPythonPath = pythonSettings.get<string>('defaultInterpreterPath');
+					if (!oldPythonPath || oldPythonPath === 'python') {
+						oldPythonPath = pythonSettings.get<string>('pythonPath');
+					}
+					if (cfgData.cfg.pythonPath) {
+						oldPythonPath = cfgData.cfg.pythonPath;
+					}
+					if (oldPythonPath) {
+						env = env.concat({name: "DEEPDEBUGGER_PYTHON_PATH", value: oldPythonPath});
+						process.env.DEEPDEBUGGER_PYTHON_PATH = oldPythonPath;
+					}
+					var extensionPath = getExtensionPath();
+					if (process.platform === 'win32') {
+						cfgData.cfg.pythonPath = extensionPath + "\\python_driver.exe";
+					} else {
+						cfgData.cfg.pythonPath = extensionPath + "/python_driver";
+					}
+					if (!cfgData.cfg.args) {
+						cfgData.cfg.args = Array();
+					}
+					cfgData.cfg.args = cfgData.cfg.args.concat(Array(
+						"--deep-debugger-python-path", oldPythonPath,
+						"--deep-debugger-nodejs-path", this.findNode(),
+						"--deep-debugger-binary-hook", this.getHookPath('cpp'),
+						));
+				}
+
 				this.setConfigEnvironment(cfgData.cfg, env);
 
 				DeepDebugSession.log(JSON.stringify(cfgData));
 				vscode.debug.startDebugging(cfgData.wf, cfgData.cfg);
-		}
+			}
 		} catch (err) {
 			//
 		}
