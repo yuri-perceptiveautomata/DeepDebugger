@@ -34,6 +34,16 @@
             "console": "integratedTerminal"
 		},
         {
+            "name": "PY1",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/test_py_ext",
+            "program": "script.py",
+            "python": "d:\\oss\\VSCode\\DeepDebugger\\sampleWorkspace\\test_py_ext\\venv\\Scripts\\python.exe",
+            //"python": "d:/venv_test/test/Scripts/python_d.exe",
+            "console": "integratedTerminal"
+		},
+        {
             "name": "Bash",
             "type": "bashdb",
             "request": "launch",

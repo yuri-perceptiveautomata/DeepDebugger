@@ -1,7 +1,3 @@
-/*---------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *--------------------------------------------------------*/
-
 import {
 	Logger, logger, LoggingDebugSession,
 	InitializedEvent, TerminatedEvent
@@ -22,6 +18,7 @@ const envNameSessionId = 'DEEPDEBUGGER_SESSION_ID';
 const propNameSessionId = 'deepDbgSessionID';
 const propNameParentSessionId = 'deepDbgParentSessionID';
 const debugSessionsHierarchy = 'debugSessionsHierarchy';
+const deepDebuggerPrefix = "--deep-debugger-";
 
 type Environment = Array<{name: string, value: string|undefined}>;
 
@@ -260,13 +257,13 @@ export class DeepDebugSession extends LoggingDebugSession {
 				cfgData.cfg.name = cfgData.cfg.program;
 
 				if (cfgData.cfg.type === 'python' && cfgData.cfg.request === 'launch') {
-					const pythonSettings = vscode.workspace.getConfiguration('python');
+					const pythonSettings = vscode.workspace.getConfiguration(cfgData.cfg.type);
 					var oldPythonPath = pythonSettings.get<string>('defaultInterpreterPath');
 					if (!oldPythonPath || oldPythonPath === 'python') {
 						oldPythonPath = pythonSettings.get<string>('pythonPath');
 					}
-					if (cfgData.cfg.pythonPath) {
-						oldPythonPath = cfgData.cfg.pythonPath;
+					if (cfgData.cfg.python) {
+						oldPythonPath = cfgData.cfg.python;
 					}
 					if (oldPythonPath) {
 						env = env.concat({name: "DEEPDEBUGGER_PYTHON_PATH", value: oldPythonPath});
@@ -274,17 +271,18 @@ export class DeepDebugSession extends LoggingDebugSession {
 					}
 					var extensionPath = getExtensionPath();
 					if (process.platform === 'win32') {
-						cfgData.cfg.pythonPath = extensionPath + "\\python_driver.exe";
+						cfgData.cfg.python = extensionPath + "\\python_driver.exe";
 					} else {
-						cfgData.cfg.pythonPath = extensionPath + "/python_driver";
+						cfgData.cfg.python = extensionPath + "/python_driver";
 					}
 					if (!cfgData.cfg.args) {
 						cfgData.cfg.args = Array();
 					}
 					cfgData.cfg.args = cfgData.cfg.args.concat(Array(
-						"--deep-debugger-python-path", oldPythonPath,
-						"--deep-debugger-nodejs-path", this.findNode(),
-						"--deep-debugger-binary-hook", this.getHookPath('cpp'),
+						deepDebuggerPrefix + "python-path", oldPythonPath,
+						deepDebuggerPrefix + "nodejs-path", this.findNode(),
+						deepDebuggerPrefix + "binary-hook", this.getHookPath('cpp'),
+						deepDebuggerPrefix + "session-name", '"' + cfgData.cfg.name + ' (binary extensions)"',
 						));
 				}
 

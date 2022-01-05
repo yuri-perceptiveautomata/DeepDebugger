@@ -2,6 +2,7 @@
 function startDebugSession(type, block = true, beforeSessionCreate = (session, msg) => {}, onSessionStarted = (session) => {}) {
     var process = require('process');
     var queueName = process.env['DEEPDEBUGGER_LAUNCHER_QUEUE'];
+    const deepDebuggerPrefix = "--deep-debugger-";
     parentSessionID = process.env['DEEPDEBUGGER_SESSION_ID'];
     var session = {
         process: process,
@@ -39,9 +40,23 @@ function startDebugSession(type, block = true, beforeSessionCreate = (session, m
                 cwd: process.cwd(),
                 program: programPath,
                 console: "integratedTerminal",
-                args: process.argv.slice(3)
+                args: Array()
             };
     
+            var sessionName = false;
+            for (arg of process.argv.slice(3)) {
+                if (arg === deepDebuggerPrefix + "session-name") {
+                    sessionName = true;
+                    continue;
+                }
+                if (sessionName) {
+                    msg.name = arg;
+                    sessionName = false;
+                    continue;
+                }
+                msg.args.push(arg);
+            }
+
             msg.environment = new Array;
             for (var e in process.env) {
                 msg.environment.push({name: e, value: process.env[e]});
