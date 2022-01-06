@@ -14,4 +14,4 @@ while [[ -n $1 ]]; do
     shift
 done
 
-${NODEJS_PATH} ${SCRIPT_DIR}/python_driver.js
+${NODEJS_PATH} ${SCRIPT_DIR}/python_driver.js ${ARGS}

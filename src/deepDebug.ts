@@ -262,8 +262,8 @@ export class DeepDebugSession extends LoggingDebugSession {
 					if (!oldPythonPath || oldPythonPath === 'python') {
 						oldPythonPath = pythonSettings.get<string>('pythonPath');
 					}
-					if (cfgData.cfg.python) {
-						oldPythonPath = cfgData.cfg.python;
+					if (cfgData.cfg.pythonPath) {
+						oldPythonPath = cfgData.cfg.pythonPath;
 					}
 					if (oldPythonPath) {
 						env = env.concat({name: "DEEPDEBUGGER_PYTHON_PATH", value: oldPythonPath});
@@ -271,9 +271,9 @@ export class DeepDebugSession extends LoggingDebugSession {
 					}
 					var extensionPath = getExtensionPath();
 					if (process.platform === 'win32') {
-						cfgData.cfg.python = extensionPath + "\\python_driver.exe";
+						cfgData.cfg.pythonPath = extensionPath + "\\python_driver.exe";
 					} else {
-						cfgData.cfg.python = extensionPath + "/python_driver";
+						cfgData.cfg.pythonPath = extensionPath + "/python_driver.sh";
 					}
 					if (!cfgData.cfg.args) {
 						cfgData.cfg.args = Array();
