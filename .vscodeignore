@@ -1,7 +1,10 @@
+.yarn
 .vscode/**/*
 .gitignore
 .travis.yml
 appveyor.yml
+yarnrc.yml
+package.json
 src/**/*
 out/tests/**/*
 **/*.js.map
@@ -12,3 +15,4 @@ tsconfig.json
 out
 sampleWebWorkerWorkspace
 sampleWorkspace
+python_driver/**/*

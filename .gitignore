@@ -6,3 +6,4 @@ sampleWorkspace/
 npm-debug.log
 *.vsix
 .DS_Store
+.yarn

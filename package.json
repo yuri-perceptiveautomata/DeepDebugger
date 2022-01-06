@@ -42,12 +42,14 @@
   "dependencies": {
     "await-notify": "1.0.1",
     "fs": "^0.0.1-security",
+    "hasbin": "^1.2.0",
     "net": "^1.0.2",
     "temp": "^0.9.4",
+    "unquote": "1.1.1",
     "vscode-debugadapter": "^1.49.0",
     "vscode-test": "^1.6.1",
-    "hasbin": "^1.2.0",
-    "unquote": "1.1.1"
+    "yarn": "^1.22.11",
+    "yarn2": "^1.0.0"
   },
   "devDependencies": {
     "@types/glob": "^7.1.4",
@@ -171,11 +173,12 @@
               "type": "deepdbg",
               "request": "launch",
               "launch": "<name of a configuration to launch>",
-               "trace": true
-              }
+              "trace": true
+            }
           }
         ]
       }
     ]
-  }
+  },
+  "packageManager": "yarn@1.22.1"
 }
