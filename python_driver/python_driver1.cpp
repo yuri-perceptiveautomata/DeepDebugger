@@ -15,13 +15,26 @@ using string_view = std::wstring_view;
 using ifstream = std::wifstream;
 
 namespace fs = std::filesystem;
+using namespace std::literals;
 
 template <typename ...T>
 inline string join(T&&... args)
 {
    string retval;
-   retval.reserve((args.size() + ...));
+   retval.reserve((args.length() + ...));
    (retval.append(args), ...);
+   return retval;
+}
+
+template <typename ...T>
+inline string joins(T&&... args)
+{
+   const auto sep(_T(" "sv));
+   size_t count = sizeof...(args);
+
+   string retval;
+   retval.reserve((args.length() + ...) + count * sep.length() - 1);
+   ((retval.append(args), --count ? retval.append(sep), 0 : 0), ...);
    return retval;
 }
 
@@ -147,7 +160,6 @@ int wmain(int argc, TCHAR *argv[])
    string_view session_name_switch = DEEP_DEBUGGER_PREFIX _T("session-name");
    string_view python_path_switch = DEEP_DEBUGGER_PREFIX _T("python-path");
    string_view env_extension_switch = DEEP_DEBUGGER_PREFIX _T("env-extension");
-   string_view space = _T(" ");
 
    string_view cmdline = GetCommandLine();
    string_view args = PathGetArgs(cmdline.data());
@@ -155,7 +167,7 @@ int wmain(int argc, TCHAR *argv[])
    string_view final_args = args;
    auto pos = final_args.find(DEEP_DEBUGGER_PREFIX);
    if (pos > 0) {
-      final_args = final_args.substr(0, pos);
+      final_args = final_args.substr(0, pos - 1);
    }
 
    string_view python_path;
@@ -196,7 +208,7 @@ int wmain(int argc, TCHAR *argv[])
    auto python_path_quoted = quote(python_path);
 
    if (!launch_debugger) {
-      string cmd = join(python_path_quoted, space, args);
+      string cmd = joins(python_path_quoted, args);
       return execute(cmd);
    }
 
@@ -227,11 +239,11 @@ int wmain(int argc, TCHAR *argv[])
    auto nodejs_path_quoted = quote(nodejs_path);
    auto hook_path_quoted = quote(hook_path);
 
-   string cmd = join(nodejs_path_quoted, space, hook_path_quoted, space, python_path_quoted, space, final_args);
+   string cmd = joins(nodejs_path_quoted, hook_path_quoted, python_path_quoted, final_args);
 
    if (!session_name.empty()) {
       auto session_name_quoted = quote(session_name);
-      cmd += join(space, session_name_switch, space, session_name_quoted);
+      cmd = joins(cmd, session_name_switch, session_name_quoted);
    }
 
    return execute(cmd);
