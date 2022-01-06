@@ -2,6 +2,47 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
+			"name": "Python Driver JS",
+			"type": "pwa-node",
+			"program": "${workspaceFolder}/python_driver.js",
+			"request": "launch",
+			"skipFiles": [
+				"<node_internals>/**"
+			],
+			"args": [
+				"c:/Users/yu_ge/.vscode/extensions/ms-python.python-2021.12.1559732655/pythonFiles/lib/python/debugpy/launcher",
+				"50884",
+				//"--connect", "127.0.0.1:50883",
+				"--adapter-access-token", "7791b324aa262153df55b54e765dbe307dcbe7ff970bab8c6fef217c94cfe4bc",
+				"--configure-qt", "none",
+				"--",
+				"d:/projects/pythoncpp_test/Dll1/script.py",
+				"--deep-debugger-python-path", "\"d:/venv_test/test/Scripts/python_d.exe\"",
+				"--deep-debugger-nodejs-path", "\"node\"",
+				"--deep-debugger-binary-hook", "\"d:/oss/VSCode/DeepDebugger/hooks/cppHook.js\"",
+				"--deep-debugger-session-name", "test-session"
+			],
+		},
+		{
+			"name": "Python Driver SH",
+			"type": "bashdb",
+			"program": "${workspaceFolder}/python_driver.sh",
+			"request": "launch",
+			"args": [
+				"c:/Users/yu_ge/.vscode/extensions/ms-python.python-2021.12.1559732655/pythonFiles/lib/python/debugpy/launcher",
+				"50884",
+				//"--connect", "127.0.0.1:50883",
+				"--adapter-access-token", "7791b324aa262153df55b54e765dbe307dcbe7ff970bab8c6fef217c94cfe4bc",
+				"--configure-qt", "none",
+				"--",
+				"d:/projects/pythoncpp_test/Dll1/script.py",
+				"--deep-debugger-python-path", "\"d:/venv_test/test/Scripts/python_d.exe\"",
+				"--deep-debugger-nodejs-path", "\"node\"",
+				"--deep-debugger-binary-hook", "\"d:/oss/VSCode/DeepDebugger/hooks/cppHook.js\"",
+				"--deep-debugger-session-name", "test-session"
+			],
+		},
+			{
 			"name": "CppHook",
 			"type": "node",
 			"request": "launch",
