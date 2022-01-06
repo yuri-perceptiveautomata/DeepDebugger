@@ -6,4 +6,6 @@ sampleWorkspace/
 npm-debug.log
 *.vsix
 .DS_Store
+python_driver.pdb
+**/x64/**/*
 .yarn

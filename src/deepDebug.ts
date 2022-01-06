@@ -273,7 +273,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 					if (process.platform === 'win32') {
 						cfgData.cfg.python = extensionPath + "\\python_driver.exe";
 					} else {
-						cfgData.cfg.python = extensionPath + "/python_driver";
+						cfgData.cfg.python = extensionPath + "/python_driver.sh";
 					}
 					if (!cfgData.cfg.args) {
 						cfgData.cfg.args = Array();
