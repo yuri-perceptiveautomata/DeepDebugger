@@ -28,3 +28,5 @@ function startDebugSession(block = true) {
 }
 
 startDebugSession();
+
+module.exports = {startDebugSession};

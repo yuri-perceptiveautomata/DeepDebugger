@@ -104,11 +104,10 @@ int execute(const string_view& cmd)
 }
 
 // The algorithm is taken from CPython code
-string_view find_home_value(const string_view& buffer)
+string_view find_value(const string_view& name, const string_view& buffer)
 {
-   constexpr string_view home(_T("home"));
    for (auto s = buffer; !s.empty();) {
-      read_until(s, home);
+      read_until(s, name);
       string_view retval = ltrim(read_until(s, _T('\n')));
       if (*retval.data() == _T('=')) {
          retval.remove_prefix(1);
@@ -158,8 +157,6 @@ int wmain(int argc, TCHAR *argv[])
    string_view hook_switch = DEEP_DEBUGGER_PREFIX _T("binary-hook");
    string_view node_path_switch = DEEP_DEBUGGER_PREFIX _T("nodejs-path");
    string_view session_name_switch = DEEP_DEBUGGER_PREFIX _T("session-name");
-   string_view python_path_switch = DEEP_DEBUGGER_PREFIX _T("python-path");
-   string_view env_extension_switch = DEEP_DEBUGGER_PREFIX _T("env-extension");
 
    string_view cmdline = GetCommandLine();
    string_view args = PathGetArgs(cmdline.data());
@@ -170,15 +167,21 @@ int wmain(int argc, TCHAR *argv[])
       final_args = final_args.substr(0, pos - 1);
    }
 
+   auto python_cfg = fs::path(argv[0]).replace_filename(_T("parent.cfg"));
+   if (!fs::exists(python_cfg)) {
+      return 1;
+   }
+
+   cFileContents fc;
+   fc.read(python_cfg);
    string_view python_path;
-   if (auto python_path_ = _wgetenv(_T("DEEPDEBUGGER_PYTHON_PATH"))) {
-      python_path = python_path_;
+   if (auto home = find_value(_T("path"), fc); !home.empty()) {
+      python_path = home;
    }
 
    string_view nodejs_path, hook_path, session_name;
 
    std::map<string_view, string_view&> switchmap = {
-      {python_path_switch, python_path},
       {node_path_switch, nodejs_path},
       {hook_switch, hook_path},
       {session_name_switch, session_name},
@@ -228,7 +231,7 @@ int wmain(int argc, TCHAR *argv[])
       if (fs::exists(pyenv_cfg_path)) {
          cFileContents fc;
          fc.read(pyenv_cfg_path);
-         if (auto home = find_home_value(fc); !home.empty()) {
+         if (auto home = find_value(_T("home"), fc); !home.empty()) {
             auto rc = _tputenv_s(_T("__PYVENV_LAUNCHER__"), python_path.data());
             string python_path_string = home / python_exe_path.filename();
             python_path_quoted = quote(python_path_string);
