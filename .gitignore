@@ -7,5 +7,7 @@ npm-debug.log
 *.vsix
 .DS_Store
 python_driver.pdb
+python_driver/json
+python_driver/spdlog
 **/x64/**/*
 .yarn

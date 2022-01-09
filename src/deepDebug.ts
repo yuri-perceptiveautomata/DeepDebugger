@@ -20,8 +20,6 @@ const propNameSessionId = 'deepDbgSessionID';
 const propNameParentSessionId = 'deepDbgParentSessionID';
 const debugSessionsHierarchy = 'debugSessionsHierarchy';
 
-export const deepDebuggerPrefix = "--deep-debugger-";
-
 type Environment = Array<{name: string, value: string|undefined}>;
 
 /**
@@ -209,16 +207,26 @@ export class DeepDebugSession extends LoggingDebugSession {
 					var param = commandArray.slice(1).join('|');
 					DeepDebugSession.log(param);
 					var cfg = JSON.parse(param);
-					var env = cfg.environment;
-					cfg.environment = new Array;
-					this.setConfigEnvironment(cfg, env);
 					var parentSession: vscode.DebugSession | undefined;
 					if (DeepDebugSession.useHierarchy) {
 						if (cfg.hasOwnProperty(propNameParentSessionId)) {
 							parentSession = DeepDebugSession.sessionDict[cfg[propNameParentSessionId]];
 						}
 					}
-					vscode.debug.startDebugging(undefined, cfg, parentSession);
+					var confirmed = true;
+					switch (cfg.type) {
+						case "deepdbg-pythonBin":
+							confirmed = python.transformConfig(cfg);
+							break;
+						default:
+							var env = cfg.environment;
+							cfg.environment = new Array;
+							this.setConfigEnvironment(cfg, env);
+							break;
+					}
+					if (confirmed) {
+						vscode.debug.startDebugging(undefined, cfg, parentSession);
+					}
 				}
 			});
 		});
@@ -259,7 +267,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 				cfgData.cfg.name = cfgData.cfg.program;
 
 				if (cfgData.cfg.type === 'python' && cfgData.cfg.request === 'launch') {
-					python.makeBinConfig(cfgData.cfg, this.findNode(), this.getHookPath('cpp'));
+					python.makeBinConfig(cfgData.cfg, cfgData.wf);
 				}
 
 				this.setConfigEnvironment(cfgData.cfg, env);
