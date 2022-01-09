@@ -5,9 +5,8 @@ node_modules
 sampleWorkspace/
 npm-debug.log
 *.vsix
-.DS_Store
 python_driver.pdb
-python_driver/json
-python_driver/spdlog
+**/.vs/**/*
 **/x64/**/*
+log.txt
 .yarn

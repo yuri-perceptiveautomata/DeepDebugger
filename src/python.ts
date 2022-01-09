@@ -6,6 +6,7 @@ import * as crypto from 'crypto';
 
 import * as vscode from 'vscode';
 
+import * as binary from './binary';
 import { getExtensionPath } from './activateDeepDebug';
 
 const deepDebuggerPrefix = "--deep-debugger-";
@@ -97,17 +98,17 @@ export function makeBinConfig(cfg, wf) {
 
 export function transformConfig(cfg) {
 
+    if (!binary.transformConfig(cfg)) {
+        return false;
+    }
+
     var unquote = require('unquote');
 
-    // https://stackoverflow.com/a/16261693/8321817
-    cfg.args = cfg.cmdline.match(/(".*?"|[^"\s]+)+(?=\s*|\s*$)/g);
-    delete(cfg.cmdline);
-
-    var finalArgs = cfg.args;
     var pos = cfg.args.findIndex((v) => { return v.startsWith(deepDebuggerPrefix);});
-    if (pos) {
-        finalArgs = cfg.args.slice(1, pos);
+    if (!pos) {
+        return false;
     }
+    var finalArgs = cfg.args;
 
     for (var i = 1; i < cfg.args.length; ++i) {
         if (cfg.args[i] === deepDebuggerSessionNameSwitch) {
@@ -118,7 +119,6 @@ export function transformConfig(cfg) {
         }
     }
 
-    cfg.request = 'launch';
     if (cfg.program) {
         var pyEnvLauncher = undefined;
         var pythonPathParsed = path.parse(cfg.program);
@@ -148,19 +148,10 @@ export function transformConfig(cfg) {
             }
         }
 
-        if (process.platform === "win32") {
-            cfg.type = "cppvsdbg";
-        }
-        else {
-            cfg.type = "cppdbg";
-            cfg.MIMode = "gdb";
-        }
         cfg.args = finalArgs;
         if (pyEnvLauncher) {
             cfg.environment.push({name: '__PYVENV_LAUNCHER__', value: pyEnvLauncher});
         }
-        cfg.stopAtEntry = false;
-        cfg.console = "integratedTerminal";
     }
     return true;
 }

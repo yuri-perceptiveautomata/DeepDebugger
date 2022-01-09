@@ -9,10 +9,15 @@
 #include <filesystem>
 #include <map>
 
+#ifdef _UNICODE
 using string = std::wstring;
 using string_view = std::wstring_view;
-
 using ifstream = std::wifstream;
+#else
+using string = std::string;
+using string_view = std::string_view;
+using ifstream = std::ifstream;
+#endif
 
 namespace fs = std::filesystem;
 using namespace std::literals;
@@ -38,7 +43,7 @@ inline string joins(T&&... args)
    return retval;
 }
 
-inline string_view read_until(string_view& v, char sep, bool keep_sep = false)
+inline string_view readUntil(string_view& v, char sep, bool keep_sep = false)
 {
    size_t i = v.find(sep);
    string_view ret = v.substr(0, i);
@@ -46,7 +51,7 @@ inline string_view read_until(string_view& v, char sep, bool keep_sep = false)
    return ret;
 }
 
-inline string_view read_until(string_view& v, const string_view& sep, bool keep_sep = false)
+inline string_view readUntil(string_view& v, const string_view& sep, bool keep_sep = false)
 {
    size_t i = v.find(sep);
    string_view ret = v.substr(0, i);
@@ -104,11 +109,11 @@ int execute(const string_view& cmd)
 }
 
 // The algorithm is taken from CPython code
-string_view find_value(const string_view& name, const string_view& buffer)
+string_view findValue(const string_view& name, const string_view& buffer)
 {
    for (auto s = buffer; !s.empty();) {
-      read_until(s, name);
-      string_view retval = ltrim(read_until(s, _T('\n')));
+      readUntil(s, name);
+      string_view retval = ltrim(readUntil(s, _T('\n')));
       if (*retval.data() == _T('=')) {
          retval.remove_prefix(1);
          return ltrim(retval);
@@ -151,7 +156,7 @@ public:
 
 #define DEEP_DEBUGGER_PREFIX _T("--deep-debugger-")
 
-int wmain(int argc, TCHAR *argv[])
+int _tmain(int argc, TCHAR *argv[])
 {
    string_view connect_switch = _T("--connect");
    string_view hook_switch = DEEP_DEBUGGER_PREFIX _T("binary-hook");
@@ -175,7 +180,7 @@ int wmain(int argc, TCHAR *argv[])
    cFileContents fc;
    fc.read(python_cfg);
    string_view python_path;
-   if (auto home = find_value(_T("path"), fc); !home.empty()) {
+   if (auto home = findValue(_T("path"), fc); !home.empty()) {
       python_path = home;
    }
 
@@ -231,9 +236,9 @@ int wmain(int argc, TCHAR *argv[])
       if (fs::exists(pyenv_cfg_path)) {
          cFileContents fc;
          fc.read(pyenv_cfg_path);
-         if (auto home = find_value(_T("home"), fc); !home.empty()) {
+         if (auto home = findValue(_T("home"), fc); !home.empty()) {
             auto rc = _tputenv_s(_T("__PYVENV_LAUNCHER__"), python_path.data());
-            string python_path_string = home / python_exe_path.filename();
+            string python_path_string = (home / python_exe_path.filename()).string();
             python_path_quoted = quote(python_path_string);
          }
       }

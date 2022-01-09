@@ -13,7 +13,9 @@ import * as net from 'net';
 import * as path from 'path';
 import { randomBytes } from 'crypto';
 import { getExtensionPath } from './activateDeepDebug';
+
 import * as python from './python';
+import * as binary from './binary';
 
 const envNameSessionId = 'DEEPDEBUGGER_SESSION_ID';
 const propNameSessionId = 'deepDbgSessionID';
@@ -218,6 +220,9 @@ export class DeepDebugSession extends LoggingDebugSession {
 						case "deepdbg-pythonBin":
 							confirmed = python.transformConfig(cfg);
 							break;
+						case "cppvsdbg":
+							confirmed = binary.transformConfig(cfg);
+							break;
 						default:
 							var env = cfg.environment;
 							cfg.environment = new Array;
@@ -233,11 +238,12 @@ export class DeepDebugSession extends LoggingDebugSession {
 		server.listen(tempLauncherQueuePath);
 
 		try {
+			var cpphook = path.join(getExtensionPath(), (process.platform === 'win32' ? 'hook.exe' : 'hook.sh')) + ' ';
 			var env = [
 				{name: 'DEEPDEBUGGER_LAUNCHER_QUEUE', value: tempLauncherQueuePath},
 				{name: args['pythonHook']??'DEEPDBG_PYTHON', value: this.getHook('python')},
-				{name: args['cppHook']??'DEEPDBG_CPP', value: this.getHook('cpp')},
-				{name: args['cppHookNoBlock']??'DEEPDBG_CPP_NB', value: this.getHook('cpp', false)},
+				{name: args['cppHook']??'DEEPDBG_CPP', value: cpphook},
+				{name: args['cppHookNoBlock']??'DEEPDBG_CPP_NB', value: cpphook},
 				{name: args['bashHook']??'DEEPDBG_BASH', value: this.getHook('bash')},
 				{name: args['bashHookNoBlock']??'DEEPDBG_BASH_NB', value: this.getHook('bash', false)},
 				{name: args['spawnHook']??'DEEPDBG_SPAWN', value: this.getHook('spawn')},
