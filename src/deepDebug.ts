@@ -53,7 +53,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 	 * We configure the default implementation of a debug adapter here.
 	 */
 	public constructor() {
-		super("deep-debugger.txt");
+		super('deep-debugger.txt');
 
 		vscode.debug.onDidStartDebugSession(session => {
 			if (session.configuration.hasOwnProperty(propNameSessionId)) {
@@ -80,9 +80,9 @@ export class DeepDebugSession extends LoggingDebugSession {
 	static log(data: string) {
 		if (DeepDebugSession.enableLogging) {
 			if (DeepDebugSession.deepDbgLog === -1) {
-				DeepDebugSession.deepDbgLog = fs.openSync(path.join(tempName.dir, "deepdbg.log"), "w");
+				DeepDebugSession.deepDbgLog = fs.openSync(path.join(tempName.dir, 'deepdbg.log'), 'w');
 			}
-			fs.writeFileSync(DeepDebugSession.deepDbgLog, data + "\n");
+			fs.writeFileSync(DeepDebugSession.deepDbgLog, data + '\n');
 		}
 	}
 
@@ -118,10 +118,10 @@ export class DeepDebugSession extends LoggingDebugSession {
 		if (isNodeAvailable) {
 			return nodePath;
 		}
-		var binPath = path.join(getExtensionPath(), "../../bin");
+		var binPath = path.join(getExtensionPath(), '../../bin');
 		var binPathFiles = fs.readdirSync(binPath);
 		var isNode = function (f) {
-			if (process.platform === "win32") {
+			if (process.platform === 'win32') {
 				return f.toLowerCase() === 'node.exe';
 			} else {
 				return f === 'node';
@@ -138,11 +138,11 @@ export class DeepDebugSession extends LoggingDebugSession {
 				}
 			}
 		}
-		return "";
+		return '';
 	}
 
 	protected getHookPath(mode, block: boolean = true) {
-		var hookPath = path.join(getExtensionPath(), "hooks", mode + "Hook" + (block? "" : "NB") + ".js");
+		var hookPath = path.join(getExtensionPath(), 'hooks', mode + 'Hook' + (block? '' : 'NB') + '.js');
 		return hookPath;
 	}
 
@@ -150,7 +150,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 		var nodePath = this.findNode();
 		if (nodePath) {
 			var hookPath = this.getHookPath(mode, block);
-			return nodePath + " " + hookPath + " ";
+			return nodePath + ' ' + hookPath + ' ';
 		}
 		return '';
 	}
@@ -181,11 +181,50 @@ export class DeepDebugSession extends LoggingDebugSession {
 		}
 	}
 
+	protected decodeConfig(cfg) {
+		var inEnc: BufferEncoding = 'base64';
+		var outEnc: BufferEncoding = 'utf8';
+		var cfgEnv = cfg.environment.split('\n').map(x => {
+			var u = Buffer.from(x, inEnc).toString(outEnc);
+			var i = u.indexOf('=');
+			if (i <= 0) {
+				return u;
+			}
+			var name = u.substring(0, i);
+			var value = u.substring(i + 1);
+			if (name === envNameSessionId) {
+				cfg[propNameSessionId] = value;
+			}
+			return {name: name, value: value};
+		});
+		if (cfgEnv[cfgEnv.length - 1] === '') {
+			cfgEnv.pop();
+		}
+		delete(cfg.environment);
+
+		cfg.cwd = Buffer.from(cfg.cwd, inEnc).toString(outEnc);
+		cfg.cmdline = Buffer.from(cfg.cmdline, inEnc).toString(outEnc);
+
+		cfg.type = Buffer.from(cfg.type, inEnc).toString(outEnc);
+		if (cfg.type === 'cppdbg' || cfg.type === 'cppvsdbg' || cfg.type === 'deepdbg-pythonBin') {
+			cfg.environment = cfgEnv;
+		} else {
+			if (!cfg.env) {
+				cfg.env = new Object;
+			}
+			this.setEnvAsObject(cfg.env, cfgEnv);
+		}
+
+		if (cfg.program) {
+			cfg.program = Buffer.from(cfg.program, inEnc).toString(outEnc);
+		}
+	}
+
 	protected launchDebugeeConfig(args: ILaunchRequestArguments) {
 
-		const pipeName = args['messageQueueName']??("deepdbg-lque-" + randomBytes(10).toString('hex'));
+		const pipeName = args['messageQueueName']??('deepdbg-lque-' + randomBytes(10).toString('hex'));
 		var tempLauncherQueuePath = path.join(tempName.dir, pipeName);
-		if (process.platform === "win32") {
+		if (process.platform === 'win32') {
 			tempLauncherQueuePath = '\\\\?\\pipe\\' + tempLauncherQueuePath;
 		}
 
@@ -209,6 +248,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 					var param = commandArray.slice(1).join('|');
 					DeepDebugSession.log(param);
 					var cfg = JSON.parse(param);
+					this.decodeConfig(cfg);
 					var parentSession: vscode.DebugSession | undefined;
 					if (DeepDebugSession.useHierarchy) {
 						if (cfg.hasOwnProperty(propNameParentSessionId)) {
@@ -217,16 +257,13 @@ export class DeepDebugSession extends LoggingDebugSession {
 					}
 					var confirmed = true;
 					switch (cfg.type) {
-						case "deepdbg-pythonBin":
+						case 'deepdbg-pythonBin':
 							confirmed = python.transformConfig(cfg);
 							break;
-						case "cppvsdbg":
+						case 'cppvsdbg':
 							confirmed = binary.transformConfig(cfg);
 							break;
 						default:
-							var env = cfg.environment;
-							cfg.environment = new Array;
-							this.setConfigEnvironment(cfg, env);
 							break;
 					}
 					if (confirmed) {
@@ -259,14 +296,14 @@ export class DeepDebugSession extends LoggingDebugSession {
 				// var exec_env = process.env;
 				// this.setEnvAsObject(exec_env, env);
 				// cp.exec(launch, {env: exec_env});
-				var terminalName = "Deep Debugger";
+				var terminalName = 'Deep Debugger';
 				var terminal = vscode.window.terminals.find(t => t.name === terminalName);
 				terminal?.dispose();
 				terminal = vscode.window.createTerminal(terminalName);
 				terminal.show();
-				var setCmd = process.platform === 'win32' ? "set" : "export";
+				var setCmd = process.platform === 'win32' ? 'set' : 'export';
 				for (var v of env) {
-					terminal.sendText(setCmd + " " + v.name + "=\"" + v.value + "\"");
+					terminal.sendText(setCmd + ' ' + v.name + '=\'' + v.value + '\'');
 				}
 				terminal.sendText(launch.join(' '));
 			} else {
@@ -311,7 +348,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 
 		// make VS Code support completion in REPL
 		response.body.supportsCompletionsRequest = true;
-		response.body.completionTriggerCharacters = [ ".", "[" ];
+		response.body.completionTriggerCharacters = [ '.', '[' ];
 
 		// make VS Code send cancel request
 		response.body.supportsCancelRequest = true;
@@ -327,7 +364,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 		response.body.exceptionBreakpointFilters = [
 			{
 				filter: 'namedException',
-				label: "Named Exception",
+				label: 'Named Exception',
 				description: `Break on named exceptions. Enter the exception's name as the Condition.`,
 				default: false,
 				supportsCondition: true,
@@ -335,7 +372,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 			},
 			{
 				filter: 'otherExceptions',
-				label: "Other Exceptions",
+				label: 'Other Exceptions',
 				description: 'This is a other exception',
 				default: true,
 				supportsCondition: false

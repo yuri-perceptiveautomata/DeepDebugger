@@ -95,7 +95,7 @@ struct cConfig
    bool send();
 
 private:
-   string makeConfig(const string_view& hook_queue, const string_view& parent_session_id);
+   string makeConfig();
    bool await();
 
    string m_session_type, m_cmdline;
@@ -147,7 +147,7 @@ public:
    }
 };
 
-#if 1
+#if 0
 
 #define LOG(sfmt, ...)
 #define LOGX(sfmt, stmt, ...)
