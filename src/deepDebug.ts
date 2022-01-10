@@ -184,7 +184,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 	protected decodeConfig(cfg) {
 		var inEnc: BufferEncoding = 'base64';
 		var outEnc: BufferEncoding = 'utf8';
-		var cfgEnv = cfg.environment.split('\n').map(x => {
+		var cfgEnv = cfg.environment.split('-').map(x => {
 			var u = Buffer.from(x, inEnc).toString(outEnc);
 			var i = u.indexOf('=');
 			if (i <= 0) {
@@ -260,6 +260,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 						case 'deepdbg-pythonBin':
 							confirmed = python.transformConfig(cfg);
 							break;
+						case 'cppdbg':
 						case 'cppvsdbg':
 							confirmed = binary.transformConfig(cfg);
 							break;

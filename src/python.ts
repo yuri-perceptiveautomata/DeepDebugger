@@ -9,18 +9,18 @@ import * as vscode from 'vscode';
 import * as binary from './binary';
 import { getExtensionPath } from './activateDeepDebug';
 
-const deepDebuggerPrefix = "--deep-debugger-";
-const deepDebuggerSessionNameSwitch = deepDebuggerPrefix + "session-name";
-const deepDebuggerSessionCwdSwitch = deepDebuggerPrefix + "session-cwd";
+const deepDebuggerPrefix = '--deep-debugger-';
+const deepDebuggerSessionNameSwitch = deepDebuggerPrefix + 'session-name';
+const deepDebuggerSessionCwdSwitch = deepDebuggerPrefix + 'session-cwd';
 
 function cloneDriver(origPythonPath: string): string {
     var tempPath = path.join(os.tmpdir(), 'DeepDebugger', 'python');
     var extensionPath = getExtensionPath();
     var parcedExtDir = path.parse(extensionPath);
     var parcedPythonPath = path.parse(origPythonPath);
-    var driverFileName = "python_driver.sh";
+    var driverFileName = 'python_driver.sh';
     if (process.platform === 'win32') {
-        driverFileName = "python_driver.exe";
+        driverFileName = 'python_driver.exe';
         parcedExtDir.dir = parcedExtDir.dir.replace(':', path.sep);
         parcedPythonPath.dir = parcedPythonPath.dir.replace(':', path.sep);
     }
@@ -31,7 +31,7 @@ function cloneDriver(origPythonPath: string): string {
         tempDriverDir = origPythonPath;
     } else {
         var pathTemp = path.join(parcedExtDir.dir, parcedExtDir.base, parcedPythonPath.dir);
-        pathTemp = crypto.createHash('md5').update(pathTemp).digest("hex");
+        pathTemp = crypto.createHash('md5').update(pathTemp).digest('hex');
         tempDriverDir = path.join(tempPath, pathTemp);
         if (fs.mkdirSync(tempDriverDir, {recursive: true})) {
             fs.writeFileSync(path.join(tempDriverDir, 'parent.cfg'), 'path=' + origPythonPath + '\n');

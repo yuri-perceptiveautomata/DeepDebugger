@@ -162,7 +162,7 @@ string cConfig::makeConfig()
    env.reserve(2 * size + 1);
    for (TCHAR** s = _tenviron; *s; s++) {
       env += base64::Encode(*s);
-      env += _T('\n');
+      env += _T('-');
    }
    env.shrink_to_fit();
 
