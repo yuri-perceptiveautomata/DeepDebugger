@@ -13,7 +13,5 @@
 #include <vector>
 #include <list>
 
-#include "nlohmann/json.hpp"
-
 #include "spdlog/spdlog.h"
 #include "spdlog/sinks/basic_file_sink.h"

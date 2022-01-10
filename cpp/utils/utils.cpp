@@ -6,36 +6,35 @@
 
 #include "utils.h"
 
-std::tuple<string, string, string> getQueueNames()
+#include "nlohmann/json.hpp"
+using namespace nlohmann;
+
+cConfig::cConfig(const string& session_type, const string& cmdline)
+   : m_session_type(session_type), m_cmdline(cmdline)
 {
-   auto queue_name = _tgetenv(_T("DEEPDEBUGGER_LAUNCHER_QUEUE"));
-   if (!queue_name) {
-      LOG(_T("Cannot retrieve queue name, exiting"));
-      return {};
-   }
-   LOG("Queue name: {}", queue_name);
-
-   auto parent_session_id = _tgetenv(_T("DEEPDEBUGGER_SESSION_ID"));
-   if (!parent_session_id) {
-      LOG(_T("Cannot retrieve parent session ID, exiting"));
-      return {};
-   }
-   LOG(_T("Parent session ID retrieved: {}"), parent_session_id);
-
-   string hook_queue = join(queue_name, _T("."), parent_session_id);
-   return { queue_name, hook_queue, parent_session_id };
 }
 
-void makeConfig(json& cfg, const string& session_type, const string& cmdline, const string& parent_session_id, const string& hook_queue)
+void cConfig::add(const string& key, const string& val)
 {
-   LOG("Setting session type to {}", session_type);
-   cfg["type"] = session_type;
+   m_params[key] = val;
+}
 
-   LOG("Setting session command line to {}", cmdline);
-   cfg["cmdline"] = cmdline;
+string cConfig::makeConfig(const string_view& hook_queue, const string_view& parent_session_id)
+{
+   json cfg;
+
+   LOG("Setting session type to {}", m_session_type);
+   cfg["type"] = m_session_type;
+
+   LOG("Setting session command line to {}", m_cmdline);
+   cfg["cmdline"] = m_cmdline;
 
    LOG("Setting session working dir");
    cfg["cwd"] = fs::current_path().string();
+
+   for (const auto& [key, value] : m_params) {
+      cfg[key] = value;
+   }
 
    std::list<json> env;
    for (TCHAR** s = _tenviron; *s; s++) {
@@ -55,14 +54,35 @@ void makeConfig(json& cfg, const string& session_type, const string& cmdline, co
    LOG("Setting session id and hook queue");
    cfg["propNameSessionId"] = parent_session_id;
    cfg["deepDbgHookPipe"] = hook_queue;
+
+   string message = _T("start|") + cfg.dump();
+
+   return message;
 }
 
-bool send(const string& queue_name, const json& cfg)
+bool cConfig::send()
 {
-   std::string message = _T("start|") + cfg.dump();
+   auto queue_name = _tgetenv(_T("DEEPDEBUGGER_LAUNCHER_QUEUE"));
+   if (!queue_name) {
+      LOG(_T("Cannot retrieve queue name, exiting"));
+      return false;
+   }
+   m_queue = queue_name;
+   LOG("Queue name: {}", m_queue);
+
+   auto parent_session_id = _tgetenv(_T("DEEPDEBUGGER_SESSION_ID"));
+   if (!parent_session_id) {
+      LOG(_T("Cannot retrieve parent session ID, exiting"));
+      return false;
+   }
+   LOG(_T("Parent session ID retrieved: {}"), parent_session_id);
+
+   m_hook_queue = join(queue_name, _T("."), parent_session_id);
+
+   string message = makeConfig(m_hook_queue, parent_session_id);
    LOG("Debug session request: {}", message);
 
-   HANDLE hPipe = CreateFile(queue_name.c_str(), GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+   HANDLE hPipe = CreateFile(m_queue.c_str(), GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
    if (hPipe == INVALID_HANDLE_VALUE) {
       LOG("Cannot open parent queue, exiting");
       return false;
@@ -74,21 +94,21 @@ bool send(const string& queue_name, const json& cfg)
    WriteFile(hPipe, message.c_str(), (DWORD)message.length(), &dwWritten, NULL);
    CloseHandle(hPipe);
 
-   return true;
+   return await();
 }
 
-bool await(const string& queue_name)
+bool cConfig::await()
 {
    DWORD pipeMode = PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT;
-   HANDLE hPipe = CreateNamedPipe(queue_name.c_str(), PIPE_ACCESS_DUPLEX, pipeMode, 1, 1000, 1000, NMPWAIT_USE_DEFAULT_WAIT, nullptr);
+   HANDLE hPipe = CreateNamedPipe(m_hook_queue.c_str(), PIPE_ACCESS_DUPLEX, pipeMode, 1, 1000, 1000, NMPWAIT_USE_DEFAULT_WAIT, nullptr);
    if (hPipe == INVALID_HANDLE_VALUE) {
-      LOG("Cannot create child queue {}, exiting ({})", queue_name, getErrorMessage());
+      LOG("Cannot create child queue {}, exiting ({})", m_hook_queue, getErrorMessage());
       return false;
    }
-   LOG("Child queue created successfully: {}", queue_name);
+   LOG("Child queue created successfully: {}", m_hook_queue);
 
    if (!ConnectNamedPipe(hPipe, NULL)) {
-      LOG("Cannot open child queue {}, exiting ({})", queue_name, getErrorMessage());
+      LOG("Cannot open child queue {}, exiting ({})", m_hook_queue, getErrorMessage());
       return false;
    }
 

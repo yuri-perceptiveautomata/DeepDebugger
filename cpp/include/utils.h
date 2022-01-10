@@ -5,9 +5,6 @@
 #include <filesystem>
 #include <filesystem>
 
-#include "nlohmann/json.hpp"
-using namespace nlohmann;
-
 #include "spdlog/spdlog.h"
 #include "spdlog/sinks/basic_file_sink.h"
 
@@ -87,12 +84,23 @@ inline string quote(const string_view& str)
 int execute(const string_view& cmd);
 string getErrorMessage();
 
-std::tuple<string, string, string> getQueueNames();
+struct cConfig
+{
+   std::map<string, string> m_params;
 
-void makeConfig(json& cfg, const string& session_type, const string& cmdline, const string& parent_session_id, const string& hook_queue);
+   cConfig(const string& session_type, const string& cmdline);
 
-bool send(const string& queue_name, const json& cfg);
-bool await(const string& queue_name);
+   void add(const string& key, const string& val);
+
+   bool send();
+
+private:
+   string makeConfig(const string_view& hook_queue, const string_view& parent_session_id);
+   bool await();
+
+   string m_session_type, m_cmdline;
+   string m_parent_session_id, m_queue, m_hook_queue;
+};
 
 inline string_view findValue(const string_view& name, const string_view& buffer)
 {
