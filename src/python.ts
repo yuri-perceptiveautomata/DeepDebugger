@@ -6,8 +6,8 @@ import * as crypto from 'crypto';
 
 import * as vscode from 'vscode';
 
-import * as binary from './binary';
 import { getExtensionPath } from './activateDeepDebug';
+import { DeepDebugSession } from './deepDebug';
 
 const deepDebuggerPrefix = '--deep-debugger-';
 const deepDebuggerSessionNameSwitch = deepDebuggerPrefix + 'session-name';
@@ -96,11 +96,7 @@ export function makeBinConfig(cfg, wf) {
         ));
 }
 
-export function transformConfig(cfg) {
-
-    if (!binary.transformConfig(cfg)) {
-        return false;
-    }
+export function transformConfig(cfg, session: DeepDebugSession) {
 
     var unquote = require('unquote');
 
@@ -147,6 +143,10 @@ export function transformConfig(cfg) {
                 }
             }
         }
+
+        cfg.type = 'binary';
+        session.decodeEnvironment(cfg);
+        session.setBinaryConfigType(cfg);
 
         cfg.args = finalArgs;
         if (pyEnvLauncher) {

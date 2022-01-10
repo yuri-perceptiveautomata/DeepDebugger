@@ -147,7 +147,7 @@ public:
    }
 };
 
-#if 0
+#if 1
 
 #define LOG(sfmt, ...)
 #define LOGX(sfmt, stmt, ...)

@@ -140,8 +140,10 @@ string cConfig::makeConfig()
 {
    json cfg;
 
-   LOG("Setting session type to {}", m_session_type);
-   cfg["type"] = base64::Encode(m_session_type);
+   if (!m_session_type.empty()) {
+      LOG("Setting session type to {}", m_session_type);
+      cfg["type"] = base64::Encode(m_session_type);
+   }
 
    LOG("Setting session working dir");
    cfg["cwd"] = base64::Encode(fs::current_path().string());

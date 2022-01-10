@@ -8,7 +8,7 @@ int _tmain(int argc, TCHAR* argv[])
 
    string cmdline = GetCommandLine();
 
-   cConfig config(_T("cppvsdbg"), cmdline);
+   cConfig config(_T(""), cmdline);
 
    if (!config.send()) {
       return -1;
