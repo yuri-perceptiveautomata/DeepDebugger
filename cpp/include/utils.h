@@ -147,7 +147,7 @@ public:
    }
 };
 
-#if 1
+#ifdef NDEBUG
 
 #define LOG(sfmt, ...)
 #define LOGX(sfmt, stmt, ...)
@@ -173,10 +173,11 @@ namespace dbg {
    {
       if (enable) {
          if (!logger) {
-            logger = spdlog::basic_logger_mt(name, fname.string().c_str());
+            string name_str = string(name) + fmt::format(" [{}]", _getpid());
+            logger = spdlog::basic_logger_mt(name_str, fname.string().c_str());
          }
          logger->info(_T("Logging started"s));
-         logger->info(_T("Command line:"s) + GetCommandLine());
+         logger->info(_T("Command line: "s) + GetCommandLine());
          logger->flush();
       }
       s_logging_enabled = enable;

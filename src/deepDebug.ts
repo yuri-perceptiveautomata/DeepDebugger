@@ -184,6 +184,20 @@ export class DeepDebugSession extends LoggingDebugSession {
 		}
 	}
 
+	protected setConfigType(cfg) {
+		switch (path.extname(cfg.program).toLowerCase()) {
+			case '.py':
+				cfg.type = 'python';
+				break;
+			case '.js':
+				cfg.type = 'node';
+				break;
+			default:
+				return false;
+		}
+		return true;
+	}
+
 	protected setConfigTypeWin32(cfg) {
 		switch (path.extname(cfg.program).toLowerCase()) {
 			case '.exe':
@@ -191,9 +205,6 @@ export class DeepDebugSession extends LoggingDebugSession {
 				break;
 			case '.sh':
 				cfg.type = 'bashdb';
-				break;
-			case '.py':
-				cfg.type = 'python';
 				break;
 		}
 	}
@@ -239,6 +250,8 @@ export class DeepDebugSession extends LoggingDebugSession {
 			var name = u.substring(0, i);
 			var value = u.substring(i + 1);
 			if (name === envNameSessionId) {
+				value = DeepDebugSession.sessionID.toString();
+				++DeepDebugSession.sessionID;
 				cfg[propNameSessionId] = value;
 			}
 			return {name: name, value: value};
@@ -305,7 +318,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 
 		if (cfg.type) {
 			cfg.type = Buffer.from(cfg.type, DeepDebugSession.inEnc).toString(DeepDebugSession.outEnc);
-		} else {
+		} else if (!this.setConfigType(cfg)) {
 			if (process.platform === 'win32') {
 				this.setConfigTypeWin32(cfg);
 			} else {
@@ -389,7 +402,18 @@ export class DeepDebugSession extends LoggingDebugSession {
 
 			var launch = args['launch'];
 			var cfgData = this.getLaunchConfigData(launch);
-			if (!cfgData) {
+			if (cfgData) {
+				cfgData.cfg.name = cfgData.cfg.program;
+
+				if (cfgData.cfg.type === 'python' && cfgData.cfg.request === 'launch') {
+					python.makeBinConfig(cfgData.cfg, cfgData.wf);
+				}
+
+				this.setConfigEnvironment(cfgData.cfg, env);
+
+				DeepDebugSession.log(JSON.stringify(cfgData));
+				vscode.debug.startDebugging(cfgData.wf, cfgData.cfg);
+			} else {
 				// const cp = require('child_process');
 				// var exec_env = process.env;
 				// this.setEnvAsObject(exec_env, env);
@@ -404,17 +428,6 @@ export class DeepDebugSession extends LoggingDebugSession {
 					terminal.sendText(setCmd + ' ' + v.name + '=\'' + v.value + '\'');
 				}
 				terminal.sendText(launch.join(' '));
-			} else {
-				cfgData.cfg.name = cfgData.cfg.program;
-
-				if (cfgData.cfg.type === 'python' && cfgData.cfg.request === 'launch') {
-					python.makeBinConfig(cfgData.cfg, cfgData.wf);
-				}
-
-				this.setConfigEnvironment(cfgData.cfg, env);
-
-				DeepDebugSession.log(JSON.stringify(cfgData));
-				vscode.debug.startDebugging(cfgData.wf, cfgData.cfg);
 			}
 		} catch (err) {
 			//
