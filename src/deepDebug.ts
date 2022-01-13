@@ -46,7 +46,7 @@ class IPlatform {
 	envSetCommand: string = '';
 	listSeparator: string = '';
 	public isNode(f) { return false; };
-	public makeExecutable(fpath) { return fpath + this.exeSuffix; }
+	public makeExecutable(fpath) { return path.join(getExtensionPath(), fpath + this.exeSuffix); }
 	public setBinaryConfigType(cfg) {}
 	public setConfigType(cfg) {}
 }
@@ -90,7 +90,8 @@ class Platform extends IPlatform {
 		try {
 			fs.accessSync(fpath, fs.constants.X_OK);
 		} catch (e) {
-			fs.chmodSync(fpath, fs.constants.X_OK);
+			var stats = fs.statSync(fpath);
+			fs.chmodSync(fpath, stats.mode | fs.constants.X_OK);
 		}
 		return fpath;
 	};
@@ -164,8 +165,8 @@ export class DeepDebugSession extends LoggingDebugSession {
 				// 	client.write('stopped');
 				// 	client.destroy();
 				// });
-				var serverCmd = path.join(getExtensionPath(), 'server' + this.platform.exeSuffix);
-				this.server = cp.spawn(serverCmd, [session.configuration.deepDbgHookPipe, 'stopped']);
+				var serverCmd = this.platform.makeExecutable('server');
+				cp.spawn(serverCmd, [session.configuration.deepDbgHookPipe, 'stopped']);
 			}
 		});
 	}
@@ -230,7 +231,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 	}
 
 	protected getHook(mode, block: boolean = true) {
-		var hookPath = this.platform.makeExecutable(path.join(getExtensionPath(), 'hook'));
+		var hookPath = this.platform.makeExecutable('hook');
 		return hookPath + ' ';
 	}
 
@@ -442,7 +443,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 		// 	socket.on('data', d => { this.onMessage(String(d)); });
 		// });
 		// server.listen(tempLauncherQueuePath);
-		var serverCmd = path.join(getExtensionPath(), 'server' + this.platform.exeSuffix);
+		var serverCmd = this.platform.makeExecutable('server');
 		this.server = cp.spawn(serverCmd, [tempLauncherQueuePath]);
 		this.server.stdout.on('data', d => { this.onMessage(d.toString('latin1')); });
 
@@ -465,6 +466,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 			var cfgData = this.getLaunchConfigData(launch);
 			if (cfgData) {
 				cfgData.cfg.name = cfgData.cfg.program;
+				cfgData.cfg.deepDbgHookPipe = tempLauncherQueuePath;
 
 				if (cfgData.cfg.type === 'python' && cfgData.cfg.request === 'launch') {
 					python.makeBinConfig(cfgData.cfg, cfgData.wf);
