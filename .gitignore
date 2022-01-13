@@ -8,5 +8,6 @@ npm-debug.log
 python_driver.pdb
 **/.vs/**/*
 **/x64/**/*
-log.txt
+log.*
+*.args.json
 .yarn

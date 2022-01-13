@@ -146,7 +146,7 @@ export function transformConfig(cfg, session: DeepDebugSession) {
 
         cfg.type = 'binary';
         session.decodeEnvironment(cfg);
-        session.setBinaryConfigType(cfg);
+        session.platform.setBinaryConfigType(cfg);
 
         cfg.args = finalArgs;
         if (pyEnvLauncher) {

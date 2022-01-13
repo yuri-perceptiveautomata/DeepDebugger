@@ -10,5 +10,5 @@ PARAM_ENV="\"environment\": \"${PARAM_ENV_CONT}\""
 
 PARAMS_JSON="{${PARAM_TYPE},${PARAM_CWD},${PARAM_CMDLINE},${PARAM_HOOKPIPE},${PARAM_ENV}}"
 
-printf "start|%s" "${PARAMS_JSON}" | nc -UN ${DEEPDEBUGGER_LAUNCHER_QUEUE}
-nc -Ul ${HOOK_QUEUE}
+printf "start|%s" "${PARAMS_JSON}" > ${DEEPDEBUGGER_LAUNCHER_QUEUE}
+read line < ${HOOK_QUEUE}

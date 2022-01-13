@@ -10,7 +10,7 @@ import * as process from 'process';
 import * as cp from 'child_process';
 import * as tempName from 'temp';
 import * as fs from 'fs';
-import * as net from 'net';
+//import * as net from 'net';
 import * as path from 'path';
 import { randomBytes } from 'crypto';
 import { getExtensionPath } from './activateDeepDebug';
@@ -18,6 +18,7 @@ import { getExtensionPath } from './activateDeepDebug';
 import * as python from './python';
 
 const envNameSessionId = 'DEEPDEBUGGER_SESSION_ID';
+const envNameParentSessionId = 'DEEPDEBUGGER_PARENT_SESSION_ID';
 const propNameSessionId = 'deepDbgSessionID';
 const propNameParentSessionId = 'deepDbgParentSessionID';
 const debugSessionsHierarchy = 'debugSessionsHierarchy';
@@ -39,6 +40,85 @@ interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
 	noDebug?: boolean;
 }
 
+class IPlatform {
+	exeSuffix: string = '';
+	pipePrefix: string = '';
+	envSetCommand: string = '';
+	listSeparator: string = '';
+	public isNode(f) { return false; };
+	public makeExecutable(fpath) { return fpath + this.exeSuffix; }
+	public setBinaryConfigType(cfg) {}
+	public setConfigType(cfg) {}
+}
+
+class PlatformWin32 extends IPlatform {
+	public constructor() {
+		super();
+		this.exeSuffix = '.exe';
+		this.pipePrefix = '\\\\?\\pipe\\';
+		this.envSetCommand = 'set';
+		this.listSeparator = ';';
+	}
+	public isNode(f) { return f.toLowerCase() === 'node.exe'; };
+	public setBinaryConfigType(cfg) {
+		cfg.type = 'cppvsdbg';
+	}
+	public setConfigType(cfg) {
+		switch (path.extname(cfg.program).toLowerCase()) {
+			case '.exe':
+				cfg.type = 'binary';
+				break;
+			case '.sh':
+				cfg.type = 'bashdb';
+				break;
+		}
+	}
+}
+
+class Platform extends IPlatform {
+	public constructor() {
+		super();
+		this.exeSuffix = '.sh';
+		this.envSetCommand = 'export';
+		this.listSeparator = ':';
+	}
+	public isNode(f) {
+		 return f === 'node';
+	};
+	public makeExecutable(fpath) {
+		fpath = super.makeExecutable(fpath);
+		try {
+			fs.accessSync(fpath, fs.constants.X_OK);
+		} catch (e) {
+			fs.chmodSync(fpath, fs.constants.X_OK);
+		}
+		return fpath;
+	};
+	public setBinaryConfigType(cfg) {
+		cfg.type = 'cppdbg';
+		cfg.MIMode = 'gdb';
+		cfg.setupCommands = [
+			{
+				description: 'Enable pretty-printing for gdb',
+				text: '-enable-pretty-printing',
+				ignoreFailures: true
+			}
+		];
+	}
+	public setConfigType(cfg) {
+		var result = cp.execSync('file -b ' + cfg.program).toString().split(', ')[0];
+		switch (result) {
+			case 'ELF 64-bit LSB shared object':
+				cfg.type = 'binary';
+				break;
+			case 'POSIX shell script':
+			case 'Bourne-Again shell script':
+				cfg.type = 'bashdb';
+				break;
+		}
+	}
+}
+
 export class DeepDebugSession extends LoggingDebugSession {
 
 	// we don't support multiple threads, so we can use a hardcoded ID for the default thread
@@ -51,12 +131,22 @@ export class DeepDebugSession extends LoggingDebugSession {
 
 	private _configurationDone = new Subject();
 
+	private server: any = undefined;
+
+	public platform: IPlatform;
+
 	/**
 	 * Creates a new debug adapter that is used for one debug session.
 	 * We configure the default implementation of a debug adapter here.
 	 */
 	public constructor() {
 		super('deep-debugger.txt');
+
+		if (process.platform === 'win32') {
+			this.platform = new PlatformWin32();
+		} else {
+			this.platform = new Platform();
+		}
 
 		vscode.debug.onDidStartDebugSession(session => {
 			if (session.configuration.hasOwnProperty(propNameSessionId)) {
@@ -69,11 +159,13 @@ export class DeepDebugSession extends LoggingDebugSession {
 				delete DeepDebugSession.sessionDict[session.configuration[propNameSessionId]];
 			}
 			if (session.configuration.hasOwnProperty('deepDbgHookPipe')) {
-				var client = new net.Socket();
-				client.connect(session.configuration.deepDbgHookPipe, function() {
-					client.write('stopped');
-					client.destroy();
-				});
+				// var client = new net.Socket();
+				// client.connect(session.configuration.deepDbgHookPipe, function() {
+				// 	client.write('stopped');
+				// 	client.destroy();
+				// });
+				var serverCmd = path.join(getExtensionPath(), 'server' + this.platform.exeSuffix);
+				this.server = cp.spawn(serverCmd, [session.configuration.deepDbgHookPipe, 'stopped']);
 			}
 		});
 	}
@@ -123,19 +215,12 @@ export class DeepDebugSession extends LoggingDebugSession {
 		}
 		var binPath = path.join(getExtensionPath(), '../../bin');
 		var binPathFiles = fs.readdirSync(binPath);
-		var isNode = function (f) {
-			if (process.platform === 'win32') {
-				return f.toLowerCase() === 'node.exe';
-			} else {
-				return f === 'node';
-			}
-		};
 		for (var b of binPathFiles) {
 			var binDir = path.join(binPath, b);
 			if (fs.lstatSync(binDir).isDirectory()) {
 				var files = fs.readdirSync(binDir);
 				for (var file of files) {
-					if (isNode(file)) {
+					if (this.platform.isNode(file)) {
 						return path.join(binDir, file);
 					}
 				}
@@ -144,18 +229,9 @@ export class DeepDebugSession extends LoggingDebugSession {
 		return '';
 	}
 
-	protected getHookPath(mode, block: boolean = true) {
-		var hookPath = path.join(getExtensionPath(), 'hooks', mode + 'Hook' + (block? '' : 'NB') + '.js');
-		return hookPath;
-	}
-
 	protected getHook(mode, block: boolean = true) {
-		var nodePath = this.findNode();
-		if (nodePath) {
-			var hookPath = this.getHookPath(mode, block);
-			return nodePath + ' ' + hookPath + ' ';
-		}
-		return '';
+		var hookPath = this.platform.makeExecutable(path.join(getExtensionPath(), 'hook'));
+		return hookPath + ' ';
 	}
 
 	protected setConfigEnvironment(cfg, env: Environment) {
@@ -198,49 +274,8 @@ export class DeepDebugSession extends LoggingDebugSession {
 		return true;
 	}
 
-	protected setConfigTypeWin32(cfg) {
-		switch (path.extname(cfg.program).toLowerCase()) {
-			case '.exe':
-				cfg.type = 'binary';
-				break;
-			case '.sh':
-				cfg.type = 'bashdb';
-				break;
-		}
-	}
-
-	protected setConfigTypePosix(cfg) {
-		var result = cp.execSync('file -b ' + cfg.program).toString().split(', ')[0];
-		switch (result) {
-			case 'ELF 64-bit LSB shared object':
-				cfg.type = 'binary';
-				break;
-			case 'POSIX shell script':
-			case 'Bourne-Again shell script':
-				cfg.type = 'bashdb';
-				break;
-		}
-	}
-
-	public setBinaryConfigType(cfg) {
-		if (cfg.type === 'binary') {
-			if (process.platform === 'win32') {
-				cfg.type = 'cppvsdbg';
-			} else {
-				cfg.type = 'cppdbg';
-				cfg.MIMode = 'gdb';
-				cfg.setupCommands = [
-					{
-						description: 'Enable pretty-printing for gdb',
-						text: '-enable-pretty-printing',
-						ignoreFailures: true
-					}
-				];
-			}
-		}
-	}
-
 	public decodeEnvironment(cfg) {
+		var curSessionId;
 		var cfgEnv = cfg.environment.split('-').map(x => {
 			var u = Buffer.from(x, DeepDebugSession.inEnc).toString(DeepDebugSession.outEnc);
 			var i = u.indexOf('=');
@@ -250,6 +285,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 			var name = u.substring(0, i);
 			var value = u.substring(i + 1);
 			if (name === envNameSessionId) {
+				curSessionId = value;
 				value = DeepDebugSession.sessionID.toString();
 				++DeepDebugSession.sessionID;
 				cfg[propNameSessionId] = value;
@@ -258,6 +294,16 @@ export class DeepDebugSession extends LoggingDebugSession {
 		}).filter(x => {
 			return typeof x === 'object';
 		});
+
+		if (curSessionId) {
+			const found = cfgEnv.find(e => e.name === envNameParentSessionId);
+			if (found) {
+				found.value = curSessionId;
+			} else {
+				cfgEnv.push({name: envNameParentSessionId, value: curSessionId});
+			}
+		}
+
 		delete(cfg.environment);
 
 		if (cfg.type === 'binary') {
@@ -280,7 +326,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 				if (dirName === '.') {
 					var envPath = cfg.environment.find(e => e.name === 'PATH');
 					if (envPath) {
-						var splitPath = envPath.value.split(process.platform === 'win32' ? ';' : ':');
+						var splitPath = envPath.value.split(this.platform.listSeparator);
 						for (var pathPart in splitPath) {
 							var testPath = path.join(splitPath[pathPart], process.argv[2]);
 							if (fs.existsSync(testPath)) {
@@ -319,11 +365,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 		if (cfg.type) {
 			cfg.type = Buffer.from(cfg.type, DeepDebugSession.inEnc).toString(DeepDebugSession.outEnc);
 		} else if (!this.setConfigType(cfg)) {
-			if (process.platform === 'win32') {
-				this.setConfigTypeWin32(cfg);
-			} else {
-				this.setConfigTypePosix(cfg);
-			}
+			this.platform.setConfigType(cfg);
 		}
 
 		cfg.request = 'launch';
@@ -331,70 +373,89 @@ export class DeepDebugSession extends LoggingDebugSession {
 		cfg.console = 'integratedTerminal';
 	}
 
+	protected onStart(param) {
+		DeepDebugSession.log(param);
+		try {
+			var cfg = JSON.parse(param);
+			this.decodeConfig(cfg);
+			var parentSession: vscode.DebugSession | undefined;
+			if (DeepDebugSession.useHierarchy) {
+				if (cfg.hasOwnProperty(propNameParentSessionId)) {
+					parentSession = DeepDebugSession.sessionDict[cfg[propNameParentSessionId]];
+				}
+			}
+			var confirmed = true;
+			switch (cfg.type) {
+				case 'deepdbg-pythonBin':
+					confirmed = python.transformConfig(cfg, this);
+					break;
+				default:
+					this.decodeEnvironment(cfg);
+					if (cfg.type === 'binary') {
+						this.platform.setBinaryConfigType(cfg);
+					}
+					break;
+			}
+			if (confirmed) {
+				vscode.debug.startDebugging(undefined, cfg, parentSession);
+			}
+		}
+		catch (e) {
+			//
+		}
+	}
+
+	responce: string = '';
+
+	protected onMessage(commandString: string) {
+		const SPLIT_CHAR = '|';
+		this.responce += commandString;
+		if (!commandString.endsWith(SPLIT_CHAR + 'end')) {
+			return;
+		}
+		var commandArray = this.responce.trim().split(SPLIT_CHAR);
+		this.responce = '';
+		if (commandArray.length >= 1) {
+			var param = commandArray[1];
+			switch (commandArray[0]) {
+				case 'start':
+					this.onStart(param);
+					break;
+			}
+		}
+	}
+
 	protected launchDebugeeConfig(args: ILaunchRequestArguments) {
 
 		const pipeName = args['messageQueueName']??('deepdbg-lque-' + randomBytes(10).toString('hex'));
-		var tempLauncherQueuePath = path.join(tempName.dir, pipeName);
-		if (process.platform === 'win32') {
-			tempLauncherQueuePath = '\\\\?\\pipe\\' + tempLauncherQueuePath;
-		}
+		var tempLauncherQueuePath = this.platform.pipePrefix + path.join(tempName.dir, pipeName);
 
-		try {
-			fs.accessSync(tempLauncherQueuePath, fs.constants.R_OK);
-			fs.unlinkSync(tempLauncherQueuePath);
-		} catch (err) {
-		}
+		// try {
+		// 	fs.accessSync(tempLauncherQueuePath, fs.constants.R_OK);
+		// 	fs.unlinkSync(tempLauncherQueuePath);
+		// } catch (err) {
+		// }
 
 		DeepDebugSession.useHierarchy = args[debugSessionsHierarchy] ?? false;
 
-		var server = net.createServer(socket => {
-			socket.on('data', d => {
-				DeepDebugSession.log(String(d));
-				var commandArray = String(d).trim().split('|');
-				if (commandArray.length < 1) {
-					return;
-				}
-				var command = commandArray[0];
-				if (command === 'start') {
-					var param = commandArray.slice(1).join('|');
-					DeepDebugSession.log(param);
-					var cfg = JSON.parse(param);
-					this.decodeConfig(cfg);
-					var parentSession: vscode.DebugSession | undefined;
-					if (DeepDebugSession.useHierarchy) {
-						if (cfg.hasOwnProperty(propNameParentSessionId)) {
-							parentSession = DeepDebugSession.sessionDict[cfg[propNameParentSessionId]];
-						}
-					}
-					var confirmed = true;
-					switch (cfg.type) {
-						case 'deepdbg-pythonBin':
-							confirmed = python.transformConfig(cfg, this);
-							break;
-						default:
-							this.decodeEnvironment(cfg);
-							this.setBinaryConfigType(cfg);
-							break;
-					}
-					if (confirmed) {
-						vscode.debug.startDebugging(undefined, cfg, parentSession);
-					}
-				}
-			});
-		});
-		server.listen(tempLauncherQueuePath);
+		// var server = net.createServer(socket => {
+		// 	socket.on('data', d => { this.onMessage(String(d)); });
+		// });
+		// server.listen(tempLauncherQueuePath);
+		var serverCmd = path.join(getExtensionPath(), 'server' + this.platform.exeSuffix);
+		this.server = cp.spawn(serverCmd, [tempLauncherQueuePath]);
+		this.server.stdout.on('data', d => { this.onMessage(d.toString('latin1')); });
 
 		try {
-			var defaultHook = path.join(getExtensionPath(), (process.platform === 'win32' ? 'hook.exe' : 'hook.sh')) + ' ';
 			var env = [
 				{name: 'DEEPDEBUGGER_LAUNCHER_QUEUE', value: tempLauncherQueuePath},
-				{name: args['defaultHook']??'DEEPDBG', value: defaultHook},
-				{name: args['pythonHook']??'DEEPDBG_PYTHON', value: defaultHook},
-				{name: args['cppHook']??'DEEPDBG_CPP', value: defaultHook},
-				{name: args['cppHookNoBlock']??'DEEPDBG_CPP_NB', value: defaultHook},
-				{name: args['bashHook']??'DEEPDBG_BASH', value: defaultHook},
-				{name: args['bashHookNoBlock']??'DEEPDBG_BASH_NB', value: defaultHook},
-				{name: args['spawnHook']??'DEEPDBG_SPAWN', value: defaultHook},
+				{name: args['defaultHook']??'DEEPDBG', value: this.getHook('default')},
+				{name: args['pythonHook']??'DEEPDBG_PYTHON', value: this.getHook('py')},
+				{name: args['cppHook']??'DEEPDBG_CPP', value: this.getHook('cpp')},
+				{name: args['cppHookNoBlock']??'DEEPDBG_CPP_NB', value: this.getHook('cpp', false)},
+				{name: args['bashHook']??'DEEPDBG_BASH', value: this.getHook('bash')},
+				{name: args['bashHookNoBlock']??'DEEPDBG_BASH_NB', value: this.getHook('bash', false)},
+				{name: args['spawnHook']??'DEEPDBG_SPAWN', value: this.getHook('spawn')},
 			];
 			if (args.hasOwnProperty('environment')) {
 				env = env.concat(args['environment']);
@@ -423,7 +484,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 				terminal?.dispose();
 				terminal = vscode.window.createTerminal(terminalName);
 				terminal.show();
-				var setCmd = process.platform === 'win32' ? 'set' : 'export';
+				var setCmd = this.platform.envSetCommand;
 				for (var v of env) {
 					terminal.sendText(setCmd + ' ' + v.name + '=\'' + v.value + '\'');
 				}
