@@ -5,33 +5,75 @@
 	"version": "0.2.0",
 	"configurations": [
         {
-            "name": "Deep Debug",
+            "name": "Deep JS",
             "type": "deepdbg",
             "request": "launch",
-            "launch": "PY",
-            "environment1": [
-                {"name": "PA_LIB_DIR", "value": "/local_data/sw/x86_64"},
-                {"name": "DEPS_SET", "value": "min_internal"},
-                {"name": "LD_LIBRARY_PATH", "value": "/opt/ros/melodic/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/host/local_data/sw/x86_64/DriveWorks/2.0/lib:/local_data/sw/x86_64/OpenCV/3.4.0_cuda10.0/lib/:/local_data/sw/x86_64/TensorRT/7.0.0.11/lib/:${workspaceFolder}/output/client_api_py-min_internal/client_api_py-min_internal_b40677fa88cbecf1541d8797f169f699f7deb79f-custom/lib/"}
-            ],
-            "messageQueueName": "deepdbgQueue",
+            "launch": "JS",
+            // "environment1": [
+            //     {"name": "PA_LIB_DIR", "value": "/local_data/sw/x86_64"},
+            //     {"name": "DEPS_SET", "value": "min_internal"},
+            //     {"name": "LD_LIBRARY_PATH", "value": "/opt/ros/melodic/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/host/local_data/sw/x86_64/DriveWorks/2.0/lib:/local_data/sw/x86_64/OpenCV/3.4.0_cuda10.0/lib/:/local_data/sw/x86_64/TensorRT/7.0.0.11/lib/:${workspaceFolder}/output/client_api_py-min_internal/client_api_py-min_internal_b40677fa88cbecf1541d8797f169f699f7deb79f-custom/lib/"}
+            // ],
+//            "messageQueueName": "deepdbgQueue",
 //            "debugSessionsHierarchy": true,
             "trace": true
         },
 		{
-			"name": "Test",
+			"name": "Deep PY",
+			"type": "deepdbg",
+			"request": "launch",
+            "debugSessionsHierarchy": true,
+			"trace": true,
+            //"cppHook": "SOMAI_CPP_HOOK",
+			"launch": "PY"
+		},
+		{
+			"name": "Deep PY1",
 			"type": "deepdbg",
 			"request": "launch",
 			"trace": true,
             //"cppHook": "SOMAI_CPP_HOOK",
 			"launch": "PY1"
 		},
+		{
+			"name": "Deep Bash",
+			"type": "deepdbg",
+			"request": "launch",
+			"trace": true,
+            //"cppHook": "SOMAI_CPP_HOOK",
+			"launch": "bash"
+		},
+		{
+			"name": "Deep CPP",
+			"type": "deepdbg",
+			"request": "launch",
+			"trace": true,
+            //"cppHook": "SOMAI_CPP_HOOK",
+			"launch": "CPP"
+		},
+        {
+            "name": "bash",
+            "type": "bashdb",
+            "request": "launch",
+            "program": "${workspaceFolder}/test.sh",
+            "console": "integratedTerminal"
+		},
+        {
+            "name": "JS",
+            "type": "pwa-node",
+            "request": "launch",
+            "program": "test.js",
+            //"python": "d:\\oss\\VSCode\\DeepDebugger\\sampleWorkspace\\test_py_ext\\venv\\Scripts\\python.exe",
+            //"python": "C:\\Users\\yu_ge\\AppData\\Local\\Temp\\d\\oss\\VSCode\\DeepDebugger\\d\\oss\\VSCode\\DeepDebugger\\sampleWorkspace\\test_py_ext\\venv\\Scripts\\python_driver.exe",
+            "console": "integratedTerminal"
+		},
         {
             "name": "PY",
             "type": "python",
             "request": "launch",
             "program": "test.py",
-            "pythonPath": "d:\\oss\\VSCode\\DeepDebugger\\sampleWorkspace\\test_py_ext\\venv\\Scripts\\python.exe",
+            //"python": "d:\\oss\\VSCode\\DeepDebugger\\sampleWorkspace\\test_py_ext\\venv\\Scripts\\python.exe",
+            //"python": "C:\\Users\\yu_ge\\AppData\\Local\\Temp\\d\\oss\\VSCode\\DeepDebugger\\d\\oss\\VSCode\\DeepDebugger\\sampleWorkspace\\test_py_ext\\venv\\Scripts\\python_driver.exe",
             "console": "integratedTerminal"
 		},
         {
@@ -40,8 +82,9 @@
             "request": "launch",
             "cwd": "${workspaceFolder}/test_py_ext",
             "program": "script.py",
-            "pythonPath": "d:\\oss\\VSCode\\DeepDebugger\\sampleWorkspace\\test_py_ext\\venv\\Scripts\\python.exe",
-            //"python": "d:/venv_test/test/Scripts/python_d.exe",
+            "python": "d:\\oss\\VSCode\\DeepDebugger\\sampleWorkspace\\test_py_ext\\venv\\Scripts\\python.exe",
+            //"python": "C:\\Users\\yu_ge\\AppData\\Local\\Temp\\d\\oss\\VSCode\\DeepDebugger\\d\\oss\\VSCode\\DeepDebugger\\sampleWorkspace\\test_py_ext\\venv\\Scripts\\python_driver.exe",
+            //"python": "d:\\venv_test\\test\\Scripts\\python_d.exe",
             "console": "integratedTerminal"
 		},
         {
@@ -58,7 +101,7 @@
             "program": "${workspaceFolder}/test.exe",
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "console": false,
+            "console": "integratedTerminal",
             "MIMode": "gdb",
             "setupCommands": [
                 {
