@@ -1,6 +1,7 @@
 .yarn
 .vscode/**/*
 .gitignore
+.gitmodules
 .travis.yml
 appveyor.yml
 yarnrc.yml
@@ -17,3 +18,5 @@ sampleWebWorkerWorkspace
 sampleWorkspace
 cpp/**/*
 3rdparty
+log.txt
+hooks
