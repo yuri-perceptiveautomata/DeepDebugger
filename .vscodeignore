@@ -15,4 +15,4 @@ tsconfig.json
 out
 sampleWebWorkerWorkspace
 sampleWorkspace
-python_driver/**/*
+cpp/**/*

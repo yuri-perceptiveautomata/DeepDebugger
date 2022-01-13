@@ -173,7 +173,7 @@ string cConfig::makeConfig()
    LOG("Setting hook queue name");
    cfg["deepDbgHookPipe"] = m_hook_queue;
 
-   string message = _T("start|") + cfg.dump();
+   string message = cfg.dump();
 
    return message;
 }
@@ -270,7 +270,7 @@ string getErrorMessage()
       (LPTSTR)&lpMsgBuf,
       0, NULL);
 
-   string retval((TCHAR*)lpMsgBuf);
+   string retval(trim(string_view((TCHAR*)lpMsgBuf)));
 
    LocalFree(lpMsgBuf);
    LocalFree(lpDisplayBuf);
