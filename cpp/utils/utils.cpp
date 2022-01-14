@@ -126,8 +126,12 @@ namespace base64 {
 
 };
 
-cConfig::cConfig(const string& session_type, const string& cmdline)
-   : m_session_type(session_type), m_cmdline(cmdline)
+cConfig::cConfig(const string& session_type, std::span<TCHAR*> args)
+   : m_session_type(session_type), m_cmdline(args.begin(), args.end())
+{
+}
+cConfig::cConfig(const string& session_type, int argc, TCHAR* argv[])
+   : cConfig(session_type, std::span(argv + 1, argc - 1))
 {
 }
 
@@ -148,8 +152,11 @@ string cConfig::makeConfig()
    LOG("Setting session working dir");
    cfg["cwd"] = base64::Encode(fs::current_path().string());
 
-   LOG("Setting session command line to {}", m_cmdline);
-   cfg["cmdline"] = base64::Encode(m_cmdline);
+   auto concat = [](const string& retval, const string& s) { return retval + _T(" ") + s; };
+   auto concat64 = [](const string& retval, const string& s) { return retval + _T("-") + base64::Encode(s); };
+
+   LOG("Setting session command line to {}", std::accumulate(m_cmdline.begin(), m_cmdline.end(), string(), concat));
+   cfg["cmdline"] = std::accumulate(m_cmdline.begin(), m_cmdline.end(), string(), concat64);
 
    for (const auto& [key, value] : m_params) {
       cfg[key] = base64::Encode(value);

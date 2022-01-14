@@ -1,5 +1,6 @@
 #pragma once
 
+#include <span>
 #include <string>
 #include <utility>
 #include <filesystem>
@@ -88,7 +89,8 @@ struct cConfig
 {
    std::map<string, string> m_params;
 
-   cConfig(const string& session_type, const string& cmdline);
+   cConfig(const string& session_type, std::span<TCHAR*> args);
+   cConfig(const string& session_type, int argc, TCHAR* argv[]);
 
    void add(const string& key, const string& val);
 
@@ -98,8 +100,8 @@ private:
    string makeConfig();
    bool await();
 
-   string m_session_type, m_cmdline;
-   string m_parent_session_id, m_queue, m_hook_queue;
+   std::vector<string> m_cmdline;
+   string m_session_type, m_parent_session_id, m_queue, m_hook_queue;
 };
 
 inline string_view findValue(const string_view& name, const string_view& buffer)

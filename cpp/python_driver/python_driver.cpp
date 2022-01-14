@@ -46,7 +46,7 @@ int _tmain(int argc, TCHAR* argv[])
       return execute(cmd);
    }
 
-   cConfig config(_T("deepdbg-pythonBin"), cmdline);
+   cConfig config(_T("deepdbg-pythonBin"), argc, argv);
 
    LOG("Setting session program path to {}", python_path);
    config.add(_T("program"), python_path);

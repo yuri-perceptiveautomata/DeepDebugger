@@ -8,7 +8,7 @@ int _tmain(int argc, TCHAR* argv[])
 
    string cmdline = GetCommandLine();
 
-   cConfig config(_T(""), cmdline);
+   cConfig config(_T(""), argc, argv);
 
    if (!config.send()) {
       return -1;

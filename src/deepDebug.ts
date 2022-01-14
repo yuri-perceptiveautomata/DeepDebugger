@@ -49,6 +49,7 @@ class IPlatform {
 	public makeExecutable(fpath) { return path.join(getExtensionPath(), fpath + this.exeSuffix); }
 	public setBinaryConfigType(cfg) {}
 	public setConfigType(cfg) {}
+	public quote(s: string) { return s; }
 }
 
 class PlatformWin32 extends IPlatform {
@@ -117,6 +118,13 @@ class Platform extends IPlatform {
 				cfg.type = 'bashdb';
 				break;
 		}
+	}
+	public quote(s: string) {
+		if (!s || s.search(/[^\w@%+=:,./-]/) < 0) {
+			return s;
+		}
+	
+		return '"' + s.replace('"', '\\"') + '"';
 	}
 }
 
@@ -344,10 +352,13 @@ export class DeepDebugSession extends LoggingDebugSession {
 	protected decodeConfig(cfg) {
 
 		cfg.cwd = Buffer.from(cfg.cwd, DeepDebugSession.inEnc).toString(DeepDebugSession.outEnc);
-		cfg.cmdline = Buffer.from(cfg.cmdline, DeepDebugSession.inEnc).toString(DeepDebugSession.outEnc);
 
-		// https://stackoverflow.com/a/16261693/8321817
-		var args = cfg.cmdline.match(/(".*?"|[^"\s]+)+(?=\s*|\s*$)/g).slice(1);
+		var args = cfg.cmdline.split('-').map(x => {
+			return this.platform.quote(Buffer.from(x, DeepDebugSession.inEnc).toString(DeepDebugSession.outEnc));
+		}).filter(x => {
+			return x !== '';
+		});
+
 		if (!cfg.program) {
 			cfg.program = args[0];
 			cfg.args = args.slice(1);
