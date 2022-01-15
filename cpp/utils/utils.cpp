@@ -158,6 +158,11 @@ string cConfig::makeConfig()
    LOG("Setting session command line to {}", std::accumulate(m_cmdline.begin(), m_cmdline.end(), string(), concat));
    cfg["cmdline"] = std::accumulate(m_cmdline.begin(), m_cmdline.end(), string(), concat64);
 
+   if (auto parent_session_id = _tgetenv(_T("DEEPDEBUGGER_SESSION_ID"))) {
+      m_parent_session_id = parent_session_id;
+      cfg["deepDbgParentSessionID"] = parent_session_id;
+   }
+
    for (const auto& [key, value] : m_params) {
       cfg[key] = base64::Encode(value);
    }
@@ -195,14 +200,13 @@ bool cConfig::send()
    m_queue = queue_name;
    LOG("Queue name: {}", m_queue);
 
-   auto parent_session_id = _tgetenv(_T("DEEPDEBUGGER_SESSION_ID"));
-   if (!parent_session_id) {
+   if (m_parent_session_id.empty()) {
       LOG(_T("Cannot retrieve parent session ID, exiting"));
       return false;
    }
-   LOG(_T("Parent session ID retrieved: {}"), parent_session_id);
+   LOG(_T("Parent session ID retrieved: {}"), m_parent_session_id);
 
-   m_hook_queue = join(queue_name, _T("."), parent_session_id);
+   m_hook_queue = join(queue_name, _T("."), m_parent_session_id);
 
    string message = makeConfig();
    LOG("Debug session request: {}", message);

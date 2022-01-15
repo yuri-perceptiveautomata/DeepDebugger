@@ -180,7 +180,8 @@ export class DeepDebugSession extends LoggingDebugSession {
 	}
 
 	static deepDbgLog = -1;
-	static enableLogging = false;
+	static deepDbgSettings = vscode.workspace.getConfiguration('deepdbg');
+	static enableLogging = DeepDebugSession.deepDbgSettings.get<string>('enableLogging');
 	static log(data: string) {
 		if (DeepDebugSession.enableLogging) {
 			if (DeepDebugSession.deepDbgLog === -1) {
@@ -448,7 +449,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 		// } catch (err) {
 		// }
 
-		DeepDebugSession.useHierarchy = args[debugSessionsHierarchy] ?? false;
+		DeepDebugSession.useHierarchy = DeepDebugSession.deepDbgSettings.get<boolean>('debugSessionsHierarchy') ?? false;
 
 		// var server = net.createServer(socket => {
 		// 	socket.on('data', d => { this.onMessage(String(d)); });
