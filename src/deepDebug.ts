@@ -14,6 +14,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { randomBytes } from 'crypto';
 import { getExtensionPath } from './activateDeepDebug';
+import { DateTime } from 'luxon';
 
 import * as python from './python';
 
@@ -21,7 +22,6 @@ const envNameSessionId = 'DEEPDEBUGGER_SESSION_ID';
 const envNameParentSessionId = 'DEEPDEBUGGER_PARENT_SESSION_ID';
 const propNameSessionId = 'deepDbgSessionID';
 const propNameParentSessionId = 'deepDbgParentSessionID';
-const debugSessionsHierarchy = 'debugSessionsHierarchy';
 
 type Environment = Array<{name: string, value: string|undefined}>;
 
@@ -133,7 +133,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 	// we don't support multiple threads, so we can use a hardcoded ID for the default thread
 	private static sessionID = 0;
 	private static sessionDict = new Map<string, vscode.DebugSession>();
-	private static useHierarchy = false;
+	private useHierarchy: boolean = false;
 
 	private static inEnc: BufferEncoding = 'base64';
 	private static outEnc: BufferEncoding = 'utf8';
@@ -143,6 +143,10 @@ export class DeepDebugSession extends LoggingDebugSession {
 	private server: any = undefined;
 
 	public platform: IPlatform;
+
+	public deepDbgSettings = vscode.workspace.getConfiguration('deepdbg');
+	public logfile;
+	public logLock;
 
 	/**
 	 * Creates a new debug adapter that is used for one debug session.
@@ -157,6 +161,18 @@ export class DeepDebugSession extends LoggingDebugSession {
 			this.platform = new Platform();
 		}
 
+		var logfile = this.deepDbgSettings.get<string>('logfile');
+		if (logfile) {
+			this.logfile = path.join(tempName.dir, "DeepDebugger", logfile);
+			this.logLock = this.logfile + '.lock';
+			this.releaseLock(); // just in case
+			this.getLock();
+			if (fs.existsSync(this.logfile)) {
+				fs.unlinkSync(this.logfile);
+			}
+			this.releaseLock();
+		}
+
 		vscode.debug.onDidStartDebugSession(session => {
 			if (session.configuration.hasOwnProperty(propNameSessionId)) {
 				DeepDebugSession.sessionDict[session.configuration[propNameSessionId]] = session;
@@ -168,27 +184,58 @@ export class DeepDebugSession extends LoggingDebugSession {
 				delete DeepDebugSession.sessionDict[session.configuration[propNameSessionId]];
 			}
 			if (session.configuration.hasOwnProperty('deepDbgHookPipe')) {
-				// var client = new net.Socket();
-				// client.connect(session.configuration.deepDbgHookPipe, function() {
-				// 	client.write('stopped');
-				// 	client.destroy();
-				// });
-				var serverCmd = this.platform.makeExecutable('server');
-				cp.spawn(serverCmd, [session.configuration.deepDbgHookPipe, 'stopped']);
+				this.launchServer(session.configuration.deepDbgHookPipe, 'stopped');
 			}
 		});
 	}
 
-	static deepDbgLog = -1;
-	static deepDbgSettings = vscode.workspace.getConfiguration('deepdbg');
-	static enableLogging = DeepDebugSession.deepDbgSettings.get<string>('enableLogging');
-	static log(data: string) {
-		if (DeepDebugSession.enableLogging) {
-			if (DeepDebugSession.deepDbgLog === -1) {
-				DeepDebugSession.deepDbgLog = fs.openSync(path.join(tempName.dir, 'deepdbg.log'), 'w');
+	public sleep(ms) {
+		return new Promise((resolve) => {
+		  setTimeout(resolve, ms);
+		});
+	}
+
+	private async getLock() {
+		while (true) {
+			try {
+				fs.mkdirSync(this.logLock, { recursive: true });
+				break;
 			}
-			fs.writeFileSync(DeepDebugSession.deepDbgLog, data + '\n');
+			catch (e) {
+				await this.sleep(5);
+			}
 		}
+	}
+	private releaseLock() {
+		try {
+			fs.rmdirSync(this.logLock);
+		}
+		catch (e) {
+			// do nothing
+		}
+	}
+
+	public log(data: string) {
+		if (this.logfile) {
+			this.getLock();
+			var timestamp = DateTime.now().toISO().replace('T', ' ').replace(/-\d{2}:\d{2}/, '');
+			var log = fs.openSync(this.logfile, 'as'); // appending, in sync mode
+			fs.writeFileSync(log, '[' + timestamp + '] [DeepDebugSession] ' + data + '\n');
+			fs.closeSync(log);
+			this.releaseLock();
+		}
+	}
+
+	protected launchServer(queue: string, arg: string|undefined = undefined) {
+		var serverExe = this.platform.makeExecutable('server');
+		var serverArgs = [queue];
+		if (arg) {
+			serverArgs = serverArgs.concat([arg]);
+		}
+		if (this.logfile) {
+			serverArgs = serverArgs.concat(['-l', this.logfile]);
+		}
+		return cp.spawn(serverExe, serverArgs);
 	}
 
 	protected getLaunchConfigData(name: string | object) {
@@ -387,12 +434,12 @@ export class DeepDebugSession extends LoggingDebugSession {
 	}
 
 	protected onStart(param) {
-		DeepDebugSession.log(param);
+		this.log('onStart: ' + param);
 		try {
 			var cfg = JSON.parse(param);
 			this.decodeConfig(cfg);
 			var parentSession: vscode.DebugSession | undefined;
-			if (DeepDebugSession.useHierarchy) {
+			if (this.useHierarchy) {
 				if (cfg.hasOwnProperty(propNameParentSessionId)) {
 					parentSession = DeepDebugSession.sessionDict[cfg[propNameParentSessionId]];
 				}
@@ -441,22 +488,11 @@ export class DeepDebugSession extends LoggingDebugSession {
 	protected launchDebugeeConfig(args: ILaunchRequestArguments) {
 
 		const pipeName = args['messageQueueName']??('deepdbg-lque-' + randomBytes(10).toString('hex'));
-		var tempLauncherQueuePath = this.platform.pipePrefix + path.join(tempName.dir, pipeName);
+		var tempLauncherQueuePath = this.platform.pipePrefix + path.join(tempName.dir, "DeepDebugger", pipeName);
 
-		// try {
-		// 	fs.accessSync(tempLauncherQueuePath, fs.constants.R_OK);
-		// 	fs.unlinkSync(tempLauncherQueuePath);
-		// } catch (err) {
-		// }
+		this.useHierarchy = this.deepDbgSettings.get<boolean>('debugSessionsHierarchy') ?? false;
 
-		DeepDebugSession.useHierarchy = DeepDebugSession.deepDbgSettings.get<boolean>('debugSessionsHierarchy') ?? false;
-
-		// var server = net.createServer(socket => {
-		// 	socket.on('data', d => { this.onMessage(String(d)); });
-		// });
-		// server.listen(tempLauncherQueuePath);
-		var serverCmd = this.platform.makeExecutable('server');
-		this.server = cp.spawn(serverCmd, [tempLauncherQueuePath]);
+		this.server = this.launchServer(tempLauncherQueuePath);
 		this.server.stdout.on('data', d => { this.onMessage(d.toString('latin1')); });
 
 		try {
@@ -470,6 +506,9 @@ export class DeepDebugSession extends LoggingDebugSession {
 				{name: args['bashHookNoBlock']??'DEEPDBG_BASH_NB', value: this.getHook('bash', false)},
 				{name: args['spawnHook']??'DEEPDBG_SPAWN', value: this.getHook('spawn')},
 			];
+			if (this.logfile) {
+				env = env.concat([{name: 'DEEPDEBUGGER_LOGFILE', value: this.logfile}]);
+			}
 			if (args.hasOwnProperty('environment')) {
 				env = env.concat(args['environment']);
 			}
@@ -486,7 +525,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 
 				this.setConfigEnvironment(cfgData.cfg, env);
 
-				DeepDebugSession.log(JSON.stringify(cfgData));
+				this.log(JSON.stringify(cfgData));
 				vscode.debug.startDebugging(cfgData.wf, cfgData.cfg);
 			} else {
 				// const cp = require('child_process');

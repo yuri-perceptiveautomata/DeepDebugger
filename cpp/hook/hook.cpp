@@ -4,7 +4,9 @@
 
 int _tmain(int argc, TCHAR* argv[])
 {
-   ENABLE_LOGGING(_T("log.txt"), _T("hook"));
+   if (auto log = _tgetenv(_T("DEEPDEBUGGER_LOGFILE"))) {
+      ENABLE_LOGGING(log, _T("hook"));
+   }
 
    string cmdline = GetCommandLine();
 

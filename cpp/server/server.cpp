@@ -5,25 +5,34 @@ static bool sClientConnected;
 
 int _tmain(int argc, TCHAR* argv[])
 {
-   ENABLE_LOGGING(_T("log.txt"), _T("server"));
+   TCHAR *log = nullptr, *posArg[2] = {nullptr, nullptr};
+   for (int idx = 1, ai = 0; idx < argc; ++idx) {
+      if (argv[idx] == _T("-l"sv)) {
+         log = argv[++idx];
+         continue;
+      }
+      posArg[ai++] = argv[idx];
+   }
+   if (log) {
+      ENABLE_LOGGING(log, _T("server"));
+   }
 
-   if (!argv[1]) {
-      LOG("No queue name provided, exiting");
+   if (!posArg[0]) {
+      ERROR("No queue name provided, exiting");
       return 1;
    }
 
-   string queue = argv[1];
+   string queue = posArg[0];
    DWORD pipeMode = PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT;
    const size_t queue_bufsize = 10000;
 
    DWORD rlen = 0;
 
-   if (argc >= 3) {
-      auto buf = argv[2];
+   if (auto buf = posArg[1]) {
       const auto size = (DWORD)_tcslen(buf);
       HANDLE hPipe = CreateFile(queue.c_str(), GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
       if (hPipe == INVALID_HANDLE_VALUE) {
-         LOG("Cannot open queue {}, exiting ({})", queue, getErrorMessage());
+         ERROR("Cannot open queue {}, exiting ({})", queue, getErrorMessage());
          return 1;
       }
       auto success = WriteFile(hPipe, buf, size, &rlen, nullptr);
@@ -33,7 +42,7 @@ int _tmain(int argc, TCHAR* argv[])
             LOG("Client disconnected");
          }
          else {
-            LOG("WriteFile failed ({})", getErrorMessage());
+            ERROR("WriteFile failed ({})", getErrorMessage());
          }
          return 1;
       }
@@ -43,13 +52,13 @@ int _tmain(int argc, TCHAR* argv[])
    while (true) {
       HANDLE hPipe = CreateNamedPipe(queue.c_str(), PIPE_ACCESS_DUPLEX, pipeMode, 100, queue_bufsize, queue_bufsize, NMPWAIT_USE_DEFAULT_WAIT, nullptr);
       if (hPipe == INVALID_HANDLE_VALUE) {
-         LOG("Cannot create queue {}, exiting ({})", queue, getErrorMessage());
+         ERROR("Cannot create queue {}, exiting ({})", queue, getErrorMessage());
          return 1;
       }
-      LOG("Queue created successfully: {}", queue);
+      LOG("Queue created successfully: {}, waiting for messages...", queue);
 
       if (!ConnectNamedPipe(hPipe, NULL)) {
-         LOG("Cannot connect queue {}, exiting ({})", queue, getErrorMessage());
+         ERROR("Cannot connect queue {}, exiting ({})", queue, getErrorMessage());
          CloseHandle(hPipe);
       }
       else {
@@ -63,13 +72,13 @@ int _tmain(int argc, TCHAR* argv[])
                   LOG("Client disconnected");
                }
                else {
-                  LOG("ReadFile failed ({})", getErrorMessage());
+                  ERROR("ReadFile failed ({})", getErrorMessage());
                }
                break;
             }
             buf[rlen] = 0;
             LOG("Read from queue: {} {}", rlen, buf);
-            if (string_view(buf) == _T("stop")) {
+            if (string_view(buf) == _T("stopped")) {
                LOG(_T("Stop message received"));
                CloseHandle(hPipe);
                return 0;
