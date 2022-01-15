@@ -149,24 +149,24 @@ public:
    }
 };
 
-#ifdef NDEBUG
-
-#define LOG(sfmt, ...)
-#define LOGX(sfmt, stmt, ...)
-#define ENABLE_LOGGING(log, name)
-
-#else
-
 namespace dbg {
 
    inline static bool s_logging_enabled = false;
 
    inline std::shared_ptr<spdlog::logger> logger;
+   inline fs::path lock_path;
 
    inline void log(const string_view& log_msg)
    {
       if (s_logging_enabled && logger) {
          logger->info(log_msg);
+         logger->flush();
+      }
+   }
+   inline void error(const string_view& log_msg)
+   {
+      if (s_logging_enabled && logger) {
+         logger->error(log_msg);
          logger->flush();
       }
    }
@@ -177,6 +177,8 @@ namespace dbg {
          if (!logger) {
             string name_str = string(name) + fmt::format(" [{}]", _getpid());
             logger = spdlog::basic_logger_mt(name_str, fname.string().c_str());
+            lock_path = fname.string() + _T(".lock");
+
          }
          logger->info(_T("Logging started"s));
          logger->info(_T("Command line: "s) + GetCommandLine());
@@ -188,10 +190,28 @@ namespace dbg {
    {
       return s_logging_enabled;
    }
+   inline void getLock()
+   {
+      while (true) {
+         try {
+            fs::create_directories(lock_path);
+            return;
+         }
+         catch (...) {
+            Sleep(0);
+         }
+      }
+   }
+   inline void releaseLock()
+   {
+      fs::remove(lock_path);
+   }
 } // namespace dbg
 
-#define LOG(sfmt, ...) if (dbg::loggingEnabled()) dbg::log(fmt::format(_T(sfmt), __VA_ARGS__));
-#define LOGX(sfmt, stmt, ...) if (dbg::loggingEnabled()) { stmt; dbg::log(_T(sfmt)::format(sfmt, __VA_ARGS__)); }
-#define ENABLE_LOGGING(log, name) dbg::enableLogging(fs::path(argv[0]).replace_filename(log), name)
+#define LOG(sfmt, ...) if (dbg::loggingEnabled()) { dbg::getLock(); dbg::log(fmt::format(_T(sfmt), __VA_ARGS__)); dbg::releaseLock(); }
+#define LOGX(sfmt, stmt, ...) if (dbg::loggingEnabled()) { stmt; dbg::getLock(); dbg::log(_T(sfmt)::format(sfmt, __VA_ARGS__)); dbg::releaseLock(); }
 
-#endif
+#undef ERROR
+#define ERROR(sfmt, ...) if (dbg::loggingEnabled()) { dbg::getLock(); dbg::error(fmt::format(_T(sfmt), __VA_ARGS__)); dbg::releaseLock(); }
+
+#define ENABLE_LOGGING(log, name) dbg::enableLogging(fs::path(_tgetenv(_T("TMP"))) / log, name)

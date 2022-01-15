@@ -4,7 +4,9 @@
 
 int _tmain(int argc, TCHAR* argv[])
 {
-   ENABLE_LOGGING(_T("log.txt"), _T("python driver"));
+   if (auto log = _tgetenv(_T("DEEPDEBUGGER_LOGFILE"))) {
+      ENABLE_LOGGING(log, _T("python driver"));
+   }
 
    string_view connect_switch = _T("--connect");
 
@@ -21,7 +23,7 @@ int _tmain(int argc, TCHAR* argv[])
       }
    }
    if (python_path.empty()) {
-      LOG("Exiting because of empty python_path");
+      ERROR("Exiting because of empty python_path");
       return 1;
    }
 

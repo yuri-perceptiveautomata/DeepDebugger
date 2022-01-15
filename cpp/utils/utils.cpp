@@ -160,7 +160,11 @@ string cConfig::makeConfig()
 
    if (auto parent_session_id = _tgetenv(_T("DEEPDEBUGGER_SESSION_ID"))) {
       m_parent_session_id = parent_session_id;
-      cfg["deepDbgParentSessionID"] = parent_session_id;
+      cfg["deepDbgParentSessionID"] = m_parent_session_id;
+      LOG(_T("Parent session ID retrieved: {}"), m_parent_session_id);
+   }
+   else {
+      throw _T("Cannot retrieve parent session ID, exiting");
    }
 
    for (const auto& [key, value] : m_params) {
@@ -182,7 +186,9 @@ string cConfig::makeConfig()
 
    cfg["environment"] = env;
 
-   LOG("Setting hook queue name");
+   m_hook_queue = join(m_queue, _T("."), m_parent_session_id);
+
+   LOG("Setting hook queue name to {}", m_hook_queue);
    cfg["deepDbgHookPipe"] = m_hook_queue;
 
    string message = cfg.dump();
@@ -194,26 +200,30 @@ bool cConfig::send()
 {
    auto queue_name = _tgetenv(_T("DEEPDEBUGGER_LAUNCHER_QUEUE"));
    if (!queue_name) {
-      LOG(_T("Cannot retrieve queue name, exiting"));
+      ERROR(_T("Cannot retrieve queue name, exiting"));
       return false;
    }
    m_queue = queue_name;
    LOG("Queue name: {}", m_queue);
 
-   if (m_parent_session_id.empty()) {
-      LOG(_T("Cannot retrieve parent session ID, exiting"));
+   string message;
+   try {
+      message = makeConfig();
+      LOG("Debug session request: {}", message);
+   }
+   catch (string msg) {
+      ERROR(msg);
       return false;
    }
-   LOG(_T("Parent session ID retrieved: {}"), m_parent_session_id);
 
-   m_hook_queue = join(queue_name, _T("."), m_parent_session_id);
-
-   string message = makeConfig();
-   LOG("Debug session request: {}", message);
+   if (m_parent_session_id.empty()) {
+      ERROR(_T("Parent session ID is empty, exiting"));
+      return false;
+   }
 
    HANDLE hPipe = CreateFile(m_queue.c_str(), GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
    if (hPipe == INVALID_HANDLE_VALUE) {
-      LOG("Cannot open parent queue, exiting");
+      ERROR("Cannot open parent queue, exiting");
       return false;
    }
 
@@ -231,24 +241,24 @@ bool cConfig::await()
    DWORD pipeMode = PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT;
    HANDLE hPipe = CreateNamedPipe(m_hook_queue.c_str(), PIPE_ACCESS_DUPLEX, pipeMode, 1, 1000, 1000, NMPWAIT_USE_DEFAULT_WAIT, nullptr);
    if (hPipe == INVALID_HANDLE_VALUE) {
-      LOG("Cannot create child queue {}, exiting ({})", m_hook_queue, getErrorMessage());
+      ERROR("Cannot create child queue {}, exiting ({})", m_hook_queue, getErrorMessage());
       return false;
    }
    LOG("Child queue created successfully: {}", m_hook_queue);
 
    if (!ConnectNamedPipe(hPipe, NULL)) {
-      LOG("Cannot open child queue {}, exiting ({})", m_hook_queue, getErrorMessage());
+      ERROR("Cannot open child queue {}, exiting ({})", m_hook_queue, getErrorMessage());
       return false;
    }
 
    size_t rlen = 0;
    string buf(' ', 100);
    if (!ReadFile(hPipe, buf.data(), (DWORD)buf.size(), (DWORD*)&rlen, nullptr)) {
-      LOG("Cannot read child queue, exiting ({})", getErrorMessage());
+      ERROR("Cannot read child queue, exiting ({})", getErrorMessage());
       return false;
    }
    if (rlen >= buf.size()) {
-      LOG("Child queue reading overflow, exiting");
+      ERROR("Child queue reading overflow, exiting");
       return false;
    }
    buf.resize(rlen);

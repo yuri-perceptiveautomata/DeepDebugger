@@ -1,7 +1,17 @@
 #!/bin/sh
 
 LOG() {
-    echo "$1" >> /tmp/hook.log
+    if [ -n "${DEEPDEBUGGER_LOGFILE}" ]
+    then
+        LOGFILE="${TMPDIR:-${TEMP:-${TMP:-/tmp}}}/${DEEPDEBUGGER_LOGFILE}"
+        LOCK="${LOGFILE}".lock
+        while ! mkdir -p "${LOCK}" 2>/dev/null
+        do
+            sleep .005
+        done
+        echo "[$(date +%s)] hook [$$] $1" >> "${LOGFILE}"
+        rm -rf "${LOCK}" 2>/dev/null
+    fi
 }
 
 LOG "Hook started: $*"
