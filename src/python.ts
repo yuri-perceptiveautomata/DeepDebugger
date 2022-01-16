@@ -7,7 +7,7 @@ import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 
 import { getExtensionPath } from './activateDeepDebug';
-import { DeepDebugSession } from './deepDebug';
+import { DeepDebugSession, getLock, releaseLock } from './deepDebug';
 
 const deepDebuggerPrefix = '--deep-debugger-';
 const deepDebuggerSessionNameSwitch = deepDebuggerPrefix + 'session-name';
@@ -15,8 +15,7 @@ const deepDebuggerSessionCwdSwitch = deepDebuggerPrefix + 'session-cwd';
 
 const PYTHON = 'python';
 
-// https://github.com/formulahendry/vscode-code-runner/blob/master/src/utility.ts
-async function getPythonPath(): Promise<string> {
+function getPythonPath(): string {
     try {
         const extension = vscode.extensions.getExtension("ms-python.python");
         if (!extension) {
@@ -25,7 +24,7 @@ async function getPythonPath(): Promise<string> {
         const usingNewInterpreterStorage = extension.packageJSON?.featureFlags?.usingNewInterpreterStorage;
         if (usingNewInterpreterStorage) {
             if (!extension.isActive) {
-                await extension.activate();
+                extension.activate();
             }
             const execCommand = extension.exports.settings.getExecutionDetails ?
                 extension.exports.settings.getExecutionDetails().execCommand :
@@ -41,11 +40,50 @@ async function getPythonPath(): Promise<string> {
     }
 }
 
+function getInterpreter(pythonPath) {
+    var pyEnvLauncher = undefined, version: string = '';
+    var pythonPathParsed = path.parse(pythonPath);
+    var penvDir = pythonPathParsed.dir;
+    if (penvDir) {
+        const CFG_NAME = 'pyvenv.cfg';
+        var pyenvCfgPath = path.join(penvDir, CFG_NAME);
+        if (!fs.existsSync(pyenvCfgPath)) {
+            penvDir = path.parse(penvDir).dir;
+            pyenvCfgPath = path.join(penvDir, CFG_NAME);
+        }
+        if (fs.existsSync(pyenvCfgPath)) {
+            const data = fs.readFileSync(pyenvCfgPath, 'utf8').split('\n');
+            for (var str of data) {
+                if (!str) {
+                    continue;
+                }
+                const parts = str.split('=').map(x => { return x.trim(); });
+                if (parts[0] === 'home' && parts[1]) {
+                    pyEnvLauncher = pythonPath;
+                    pythonPath = path.join(parts[1], pythonPathParsed.name + pythonPathParsed.ext);
+                }
+                if (parts[0] === 'version' && parts[1]) {
+                    version = parts[1];
+                }
+            }
+        }
+    }
+    if (process.platform !== 'win32') {
+        if (version.startsWith('3')) {
+            pythonPath += '3';
+        }
+    }
+    return {path: pythonPath, version: version, launcher: pyEnvLauncher};
+}
+
 function cloneDriver(origPythonPath: string): string {
     var tempPath = path.join(os.tmpdir(), 'DeepDebugger', PYTHON);
     var extensionPath = getExtensionPath();
     var parcedExtDir = path.parse(extensionPath);
-    var parcedPythonPath = path.parse(origPythonPath);
+
+    var pyInfo = getInterpreter(origPythonPath);
+
+    var parcedPythonPath = path.parse(pyInfo.path);
     var driverFileName = 'python_driver.sh';
     if (process.platform === 'win32') {
         driverFileName = 'python_driver.exe';
@@ -54,23 +92,22 @@ function cloneDriver(origPythonPath: string): string {
     }
 
     var tempDriverDir;
-    var relPath = path.relative(tempPath, origPythonPath);
-    if (!relPath.startsWith('..') && relPath !== origPythonPath) {
-        tempDriverDir = origPythonPath;
+    var relPath = path.relative(tempPath, pyInfo.path);
+    if (!relPath.startsWith('..') && relPath !== pyInfo.path) {
+        tempDriverDir = pyInfo.path;
     } else {
         var pathTemp = path.join(parcedExtDir.dir, parcedExtDir.base, parcedPythonPath.dir);
         pathTemp = crypto.createHash('md5').update(pathTemp).digest('hex');
         tempDriverDir = path.join(tempPath, pathTemp);
         if (fs.mkdirSync(tempDriverDir, {recursive: true})) {
-            fs.writeFileSync(path.join(tempDriverDir, 'parent.cfg'), 'path=' + origPythonPath + '\n');
+            fs.writeFileSync(path.join(tempDriverDir, 'parent.cfg'), 'path=' + pyInfo.path + '\n');
         }
     }
 
     var tempDriverPath = path.join(tempDriverDir, parcedPythonPath.base);
     try {
         var origDriverPath = path.join(extensionPath, driverFileName);
-        var lock = path.join(tempDriverDir, 'temp');
-        fs.mkdirSync(lock);
+        getLock(tempDriverDir);
         var driverNeedsUpdate = !fs.existsSync(tempDriverPath);
         if (!driverNeedsUpdate) {
             var stat1 = fs.statSync(origDriverPath);
@@ -82,14 +119,14 @@ function cloneDriver(origPythonPath: string): string {
         if (driverNeedsUpdate) {
             fs.copyFileSync(origDriverPath, tempDriverPath);
         }
-        fs.rmdirSync(lock);
+        releaseLock(tempDriverDir);
     } catch (e) {
         //
     }
     return tempDriverPath;
 }
 
-export async function makeBinConfig(cfg, wf) {
+export function makeBinConfig(cfg, wf) {
     const DEFAULT_PYTHON_PATH = PYTHON;
     function notSet(pythonPath) {
         return !pythonPath || pythonPath === DEFAULT_PYTHON_PATH;
@@ -110,7 +147,7 @@ export async function makeBinConfig(cfg, wf) {
         origPythonPath = pythonSettings.get<string>('pythonPath');
     }
     if (notSet(origPythonPath)) {
-        origPythonPath = await getPythonPath();
+        origPythonPath = getPythonPath();
     }
     if (notSet(origPythonPath)) {
         origPythonPath = hasbin.sync(DEFAULT_PYTHON_PATH);
@@ -123,7 +160,7 @@ export async function makeBinConfig(cfg, wf) {
     }
     cfg.args = cfg.args.concat(Array(
         deepDebuggerSessionCwdSwitch, cfg.cwd ? cfg.cwd : wf.uri.fsPath,
-        deepDebuggerSessionNameSwitch, '"' + cfg.name + ' (binary extensions)"',
+        deepDebuggerSessionNameSwitch, cfg.name + ' (binary extensions)',
         ));
 }
 
@@ -147,41 +184,16 @@ export function transformConfig(cfg, session: DeepDebugSession) {
     }
 
     if (cfg.program) {
-        var pyEnvLauncher = undefined;
-        var pythonPathParsed = path.parse(cfg.program);
-        var penvDir = pythonPathParsed.dir;
-        if (penvDir) {
-            const CFG_NAME = 'pyvenv.cfg';
-            var pyenvCfgPath = path.join(penvDir, CFG_NAME);
-            if (!fs.existsSync(pyenvCfgPath)) {
-                penvDir = path.parse(penvDir).dir;
-                pyenvCfgPath = path.join(penvDir, CFG_NAME);
-            }
-            if (fs.existsSync(pyenvCfgPath)) {
-                const data = fs.readFileSync(pyenvCfgPath, 'utf8').split('\n');
-                for (var str of data) {
-                    if (!str) {
-                        continue;
-                    }
-                    const parts = str.split('=');
-                    if (parts[0].trim() === 'home') {
-                        if (parts[1]) {
-                            pyEnvLauncher = cfg.program;
-                            cfg.program = path.join(parts[1].trim(), pythonPathParsed.name + pythonPathParsed.ext);
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+        var pyInfo = getInterpreter(cfg.program);
+        cfg.program = pyInfo.path;
 
         cfg.type = 'binary';
         session.decodeEnvironment(cfg);
         session.platform.setBinaryConfigType(cfg);
 
         cfg.args = finalArgs;
-        if (pyEnvLauncher) {
-            cfg.environment.push({name: '__PYVENV_LAUNCHER__', value: pyEnvLauncher});
+        if (pyInfo.launcher) {
+            cfg.environment.push({name: '__PYVENV_LAUNCHER__', value: pyInfo.launcher});
         }
     }
     return true;

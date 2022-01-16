@@ -23,6 +23,33 @@ const envNameParentSessionId = 'DEEPDEBUGGER_PARENT_SESSION_ID';
 const propNameSessionId = 'deepDbgSessionID';
 const propNameParentSessionId = 'deepDbgParentSessionID';
 
+function sleep(ms) {
+	return new Promise((resolve) => {
+	  setTimeout(resolve, ms);
+	});
+}
+
+export async function getLock(fname: string) {
+	while (true) {
+		try {
+			fs.mkdirSync(fname + '.lock', { recursive: true });
+			break;
+		}
+		catch (e) {
+			await sleep(5);
+		}
+	}
+}
+
+export function releaseLock(fname: string) {
+	try {
+		fs.rmdirSync(fname + '.lock');
+	}
+	catch (e) {
+		// do nothing
+	}
+}
+
 type Environment = Array<{name: string, value: string|undefined}>;
 
 /**
@@ -165,12 +192,12 @@ export class DeepDebugSession extends LoggingDebugSession {
 		if (logfile) {
 			this.logfile = path.join(tempName.dir, "DeepDebugger", logfile);
 			this.logLock = this.logfile + '.lock';
-			this.releaseLock(); // just in case
-			this.getLock();
+			releaseLock(this.logfile); // just in case
+			getLock(this.logfile);
 			if (fs.existsSync(this.logfile)) {
 				fs.unlinkSync(this.logfile);
 			}
-			this.releaseLock();
+			releaseLock(this.logfile);
 		}
 
 		vscode.debug.onDidStartDebugSession(session => {
@@ -184,45 +211,21 @@ export class DeepDebugSession extends LoggingDebugSession {
 				delete DeepDebugSession.sessionDict[session.configuration[propNameSessionId]];
 			}
 			if (session.configuration.hasOwnProperty('deepDbgHookPipe')) {
-				this.launchServer(session.configuration.deepDbgHookPipe, 'stopped');
+				if (fs.existsSync(session.configuration.deepDbgHookPipe)) {
+					this.launchServer(session.configuration.deepDbgHookPipe, 'stopped');
+				}
 			}
 		});
-	}
-
-	public sleep(ms) {
-		return new Promise((resolve) => {
-		  setTimeout(resolve, ms);
-		});
-	}
-
-	private async getLock() {
-		while (true) {
-			try {
-				fs.mkdirSync(this.logLock, { recursive: true });
-				break;
-			}
-			catch (e) {
-				await this.sleep(5);
-			}
-		}
-	}
-	private releaseLock() {
-		try {
-			fs.rmdirSync(this.logLock);
-		}
-		catch (e) {
-			// do nothing
-		}
 	}
 
 	public log(data: string) {
 		if (this.logfile) {
-			this.getLock();
+			getLock(this.logfile);
 			var timestamp = DateTime.now().toISO().replace('T', ' ').replace(/-\d{2}:\d{2}/, '');
 			var log = fs.openSync(this.logfile, 'as'); // appending, in sync mode
 			fs.writeFileSync(log, '[' + timestamp + '] [DeepDebugSession] ' + data + '\n');
 			fs.closeSync(log);
-			this.releaseLock();
+			releaseLock(this.logfile);
 		}
 	}
 
@@ -521,6 +524,9 @@ export class DeepDebugSession extends LoggingDebugSession {
 
 				if (cfgData.cfg.type === 'python' && cfgData.cfg.request === 'launch') {
 					python.makeBinConfig(cfgData.cfg, cfgData.wf);
+					if (this.logfile) {
+						cfgData.cfg.args = cfgData.cfg.args.concat(['-l', this.logfile]);
+					}
 				}
 
 				this.setConfigEnvironment(cfgData.cfg, env);
