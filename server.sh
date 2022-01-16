@@ -1,11 +1,16 @@
 #!/bin/sh
 
+CMDLINE=$*
+
 PIPE="$1"
 shift
+
+PROCNAME=server
 
 if [ "$1" != "-l" ]
 then
     MESSAGE="$1"
+    PROCNAME=stopper
     shift
 fi
 
@@ -16,35 +21,48 @@ then
     shift
 fi
 
+lock () {
+    while ! mkdir -p "$1".lock 2>/dev/null
+    do
+        sleep .005
+    done
+}
+
+release_lock() {
+    rm -rf "$1".lock 2>/dev/null
+}
+
 LOG() {
     if [ -n "${LOGFILE}" ]
     then
-        LOCK="${LOGFILE}.lock"
-        while ! mkdir -p "${LOCK}" 2>/dev/null
-        do
-            sleep .005
-        done
+        lock "${LOGFILE}"
         TIMESTAMP=$(date +"%4Y-%m-%d %H:%M:%S.%N"|cut -b -23)
-        echo "[${TIMESTAMP}] server [$$] $1" >> "${LOGFILE}"
-        rm -rf "${LOCK}" 2>/dev/null
+        echo "[${TIMESTAMP}] ${PROCNAME} [$$] $1" >> "${LOGFILE}"
+        release_lock "${LOGFILE}"
     fi
 }
 
+LOG "Logging started"
+LOG "Command line: ${CMDLINE}"
+
 if [ -n "${MESSAGE}" ]; then
+    lock "${PIPE}"
     if [ ! -p "${PIPE}" ]; then
         LOG "${PIPE} does not exist or is not a pipe, exiting"
     else
         LOG "Sending stop signal to ${PIPE} and exiting"
         printf "%s" "${MESSAGE}" > "${PIPE}"
     fi
+    release_lock "${PIPE}"
     exit 0
 fi
 
-if [ ! -p "${PIPE}" ]; then
-    LOG "Creating ${PIPE}"
-    trap 'rm -f ${PIPE}' EXIT
-    mkfifo "${PIPE}"
-fi
+release_lock "${PIPE}"
+lock "${PIPE}"
+LOG "Creating ${PIPE}"
+trap 'lock ${PIPE}; rm -f ${PIPE}; release_lock ${PIPE}' EXIT
+mkfifo "${PIPE}"
+release_lock "${PIPE}"
 
 while true; do
     LOG "Waiting on ${PIPE}"

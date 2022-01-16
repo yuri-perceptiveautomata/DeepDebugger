@@ -184,7 +184,9 @@ export class DeepDebugSession extends LoggingDebugSession {
 				delete DeepDebugSession.sessionDict[session.configuration[propNameSessionId]];
 			}
 			if (session.configuration.hasOwnProperty('deepDbgHookPipe')) {
-				this.launchServer(session.configuration.deepDbgHookPipe, 'stopped');
+				if (fs.existsSync(session.configuration.deepDbgHookPipe)) {
+					this.launchServer(session.configuration.deepDbgHookPipe, 'stopped');
+				}
 			}
 		});
 	}
@@ -521,6 +523,9 @@ export class DeepDebugSession extends LoggingDebugSession {
 
 				if (cfgData.cfg.type === 'python' && cfgData.cfg.request === 'launch') {
 					python.makeBinConfig(cfgData.cfg, cfgData.wf);
+					if (this.logfile) {
+						cfgData.cfg.args = cfgData.cfg.args.concat(['-l', this.logfile]);
+					}
 				}
 
 				this.setConfigEnvironment(cfgData.cfg, env);

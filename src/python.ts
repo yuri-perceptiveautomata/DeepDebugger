@@ -15,8 +15,7 @@ const deepDebuggerSessionCwdSwitch = deepDebuggerPrefix + 'session-cwd';
 
 const PYTHON = 'python';
 
-// https://github.com/formulahendry/vscode-code-runner/blob/master/src/utility.ts
-async function getPythonPath(): Promise<string> {
+function getPythonPath(): string {
     try {
         const extension = vscode.extensions.getExtension("ms-python.python");
         if (!extension) {
@@ -25,7 +24,7 @@ async function getPythonPath(): Promise<string> {
         const usingNewInterpreterStorage = extension.packageJSON?.featureFlags?.usingNewInterpreterStorage;
         if (usingNewInterpreterStorage) {
             if (!extension.isActive) {
-                await extension.activate();
+                extension.activate();
             }
             const execCommand = extension.exports.settings.getExecutionDetails ?
                 extension.exports.settings.getExecutionDetails().execCommand :
@@ -89,7 +88,7 @@ function cloneDriver(origPythonPath: string): string {
     return tempDriverPath;
 }
 
-export async function makeBinConfig(cfg, wf) {
+export function makeBinConfig(cfg, wf) {
     const DEFAULT_PYTHON_PATH = PYTHON;
     function notSet(pythonPath) {
         return !pythonPath || pythonPath === DEFAULT_PYTHON_PATH;
@@ -110,7 +109,7 @@ export async function makeBinConfig(cfg, wf) {
         origPythonPath = pythonSettings.get<string>('pythonPath');
     }
     if (notSet(origPythonPath)) {
-        origPythonPath = await getPythonPath();
+        origPythonPath = getPythonPath();
     }
     if (notSet(origPythonPath)) {
         origPythonPath = hasbin.sync(DEFAULT_PYTHON_PATH);

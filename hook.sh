@@ -1,16 +1,26 @@
 #!/bin/sh
 
+PROCNAME=hook
+if [ -n "${DEEPDEBUGGER_LOGFILE}" ]; then LOGFILE="${DEEPDEBUGGER_LOGFILE}"; fi
+
+lock () {
+    while ! mkdir -p "$1".lock 2>/dev/null
+    do
+        sleep .005
+    done
+}
+
+release_lock() {
+    rm -rf "$1".lock 2>/dev/null
+}
+
 LOG() {
-    if [ -n "${DEEPDEBUGGER_LOGFILE}" ]
+    if [ -n "${LOGFILE}" ]
     then
-        LOCK="${DEEPDEBUGGER_LOGFILE}".lock
-        while ! mkdir -p "${LOCK}" 2>/dev/null
-        do
-            sleep .005
-        done
+        lock "${LOGFILE}"
         TIMESTAMP=$(date +"%4Y-%m-%d %H:%M:%S.%N"|cut -b -23)
-        echo "[${TIMESTAMP}] hook [$$] $1" >> "${DEEPDEBUGGER_LOGFILE}"
-        rm -rf "${LOCK}" 2>/dev/null
+        echo "[${TIMESTAMP}] ${PROCNAME} [$$] $1" >> "${LOGFILE}"
+        release_lock "${LOGFILE}"
     fi
 }
 
@@ -29,13 +39,17 @@ PARAM_ENV="\"environment\": \"${PARAM_ENV_CONT}\""
 PARAMS_JSON="{${PARAM_TYPE},${PARAM_CWD},${PARAM_CMDLINE},${PARAM_PARENTSESSION},${PARAM_HOOKPIPE},${PARAM_ENV}}"
 
 LOG "Sending data to ${DEEPDEBUGGER_LAUNCHER_QUEUE}: ${PARAMS_JSON}"
+lock "${DEEPDEBUGGER_LAUNCHER_QUEUE}"
 printf "%s" "${PARAMS_JSON}" > "${DEEPDEBUGGER_LAUNCHER_QUEUE}"
+release_lock "${DEEPDEBUGGER_LAUNCHER_QUEUE}"
 
+lock "${HOOK_QUEUE}"
 if [ ! -p "${HOOK_QUEUE}" ]; then
-    trap 'rm -f ${HOOK_QUEUE}' EXIT
+    trap 'lock ${HOOK_QUEUE}; rm -f ${HOOK_QUEUE}; release_lock ${HOOK_QUEUE}' EXIT
     LOG "Creating fifo ${HOOK_QUEUE}"
     mkfifo "${HOOK_QUEUE}"
 fi
+release_lock "${HOOK_QUEUE}"
 
 LOG "Waiting on ${HOOK_QUEUE}"
 IFS= read -r line < "${HOOK_QUEUE}"
