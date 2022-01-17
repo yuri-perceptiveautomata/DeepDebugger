@@ -100,7 +100,7 @@ function cloneDriver(origPythonPath: string): string {
         pathTemp = crypto.createHash('md5').update(pathTemp).digest('hex');
         tempDriverDir = path.join(tempPath, pathTemp);
         if (fs.mkdirSync(tempDriverDir, {recursive: true})) {
-            fs.writeFileSync(path.join(tempDriverDir, 'parent.cfg'), 'path=' + pyInfo.path + '\n');
+            fs.writeFileSync(path.join(tempDriverDir, 'parent.cfg'), 'path=' + pyInfo.launcher + '\n');
         }
     }
 
