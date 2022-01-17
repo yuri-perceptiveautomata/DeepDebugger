@@ -215,6 +215,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 			}
 			if (session.configuration.hasOwnProperty('deepDbgHookPipe')) {
 				this.stopServer(session.configuration.deepDbgHookPipe);
+				delete session.configuration.deepDbgHookPipe;
 			}
 		});
 	}

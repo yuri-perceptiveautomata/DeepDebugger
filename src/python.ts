@@ -73,7 +73,7 @@ function getInterpreter(pythonPath) {
             pythonPath += '3';
         }
     }
-    return {path: pythonPath, version: version, launcher: pyEnvLauncher};
+    return {path: pythonPath, version: version, launcher: pyEnvLauncher? pyEnvLauncher : pythonPath};
 }
 
 function cloneDriver(origPythonPath: string): string {
