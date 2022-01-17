@@ -22,6 +22,7 @@ const envNameSessionId = 'DEEPDEBUGGER_SESSION_ID';
 const envNameParentSessionId = 'DEEPDEBUGGER_PARENT_SESSION_ID';
 const propNameSessionId = 'deepDbgSessionID';
 const propNameParentSessionId = 'deepDbgParentSessionID';
+const deepDebuggerLogFileSwitch = '--deep-debugger-log-file';
 
 function sleep(ms) {
 	return new Promise((resolve) => {
@@ -236,7 +237,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 			serverArgs = serverArgs.concat([arg]);
 		}
 		if (this.logfile) {
-			serverArgs = serverArgs.concat(['-l', this.logfile]);
+			serverArgs = serverArgs.concat([deepDebuggerLogFileSwitch, this.logfile]);
 		}
 		return cp.spawn(serverExe, serverArgs);
 	}
@@ -525,7 +526,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 				if (cfgData.cfg.type === 'python' && cfgData.cfg.request === 'launch') {
 					python.makeBinConfig(cfgData.cfg, cfgData.wf);
 					if (this.logfile) {
-						cfgData.cfg.args = cfgData.cfg.args.concat(['-l', this.logfile]);
+						cfgData.cfg.args = cfgData.cfg.args.concat([deepDebuggerLogFileSwitch, this.logfile]);
 					}
 				}
 

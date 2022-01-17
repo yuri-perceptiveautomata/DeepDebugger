@@ -36,7 +36,7 @@ quote () {
 }
 
 while [ -n "$1" ]; do
-    if [ "$1" = "-l" ]
+    if [ "$1" = "--deep-debugger-log-file" ]
     then
         LOGFILE="$2"
         shift

@@ -7,14 +7,14 @@ shift
 
 PROCNAME=server
 
-if [ "$1" != "-l" ]
+if [ "$1" != "--deep-debugger-log-file" ]
 then
     MESSAGE="$1"
     PROCNAME=stopper
     shift
 fi
 
-if [ "$1" = "-l" ]
+if [ "$1" = "--deep-debugger-log-file" ]
 then
     LOGFILE="$2"
     shift

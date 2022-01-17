@@ -5,9 +5,9 @@ static bool sClientConnected;
 
 int _tmain(int argc, TCHAR* argv[])
 {
-   TCHAR *log = nullptr, *posArg[2] = {nullptr, nullptr};
+   TCHAR* log = nullptr, * posArg[2] = { nullptr, nullptr };
    for (int idx = 1, ai = 0; idx < argc; ++idx) {
-      if (argv[idx] == _T("-l"sv)) {
+      if (argv[idx] == _T("--deep-debugger-log-file"sv)) {
          log = argv[++idx];
          continue;
       }
