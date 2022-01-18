@@ -6,14 +6,17 @@ import * as crypto from 'crypto';
 
 import * as vscode from 'vscode';
 
-import { getExtensionPath } from './activateDeepDebug';
-import { DeepDebugSession, getLock, releaseLock } from './deepDebug';
+import {
+    PYTHON,
+    deepDebuggerPrefix,
+    DeepDebugSessionBase,
+    getExtensionPath,
+	getLock,
+	releaseLock
+} from './common';
 
-const deepDebuggerPrefix = '--deep-debugger-';
 const deepDebuggerSessionNameSwitch = deepDebuggerPrefix + 'session-name';
 const deepDebuggerSessionCwdSwitch = deepDebuggerPrefix + 'session-cwd';
-
-const PYTHON = 'python';
 
 function getPythonPath(): string {
     try {
@@ -164,7 +167,7 @@ export function makeBinConfig(cfg, wf) {
         ));
 }
 
-export function transformConfig(cfg, session: DeepDebugSession) {
+export function transformConfig(cfg, session: DeepDebugSessionBase) {
 
     var unquote = require('unquote');
 

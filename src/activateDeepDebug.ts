@@ -8,15 +8,11 @@ import * as vscode from 'vscode';
 import { WorkspaceFolder, DebugConfiguration, ProviderResult, CancellationToken } from 'vscode';
 import { DeepDebugSession } from './deepDebug';
 
-var extensionPath;
-export function getExtensionPath() {
-	return extensionPath;
-}
-
+import { setExtensionContext } from './common';
 
 export function activateDeepDebug(context: vscode.ExtensionContext, factory?: vscode.DebugAdapterDescriptorFactory) {
 
-	extensionPath = context.asAbsolutePath("");
+	setExtensionContext(context);
 
 	context.subscriptions.push(vscode.commands.registerCommand('extension.deep-debugger.getProgramName', config => {
 		return vscode.window.showInputBox({

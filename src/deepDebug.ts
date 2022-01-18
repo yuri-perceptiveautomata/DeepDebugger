@@ -1,20 +1,26 @@
-import {
-	Logger, logger, LoggingDebugSession,
-	InitializedEvent, TerminatedEvent
-} from 'vscode-debugadapter';
-import * as vscode from 'vscode';
-import { DebugProtocol } from 'vscode-debugprotocol';
 import { Subject } from 'await-notify';
-
 import * as process from 'process';
 import * as cp from 'child_process';
 import * as tempName from 'temp';
 import * as fs from 'fs';
-//import * as net from 'net';
 import * as path from 'path';
 import { randomBytes } from 'crypto';
-import { getExtensionPath } from './activateDeepDebug';
 import { DateTime } from 'luxon';
+
+import {
+	Logger, logger,
+	InitializedEvent, TerminatedEvent
+} from 'vscode-debugadapter';
+import * as vscode from 'vscode';
+import { DebugProtocol } from 'vscode-debugprotocol';
+
+import {
+	deepDebuggerPrefix,
+	deepDebuggerLogFileSwitch,
+	DeepDebugSessionBase,
+	getLock,
+	releaseLock
+} from './common';
 
 import * as python from './python';
 
@@ -22,36 +28,8 @@ const envNameSessionId = 'DEEPDEBUGGER_SESSION_ID';
 const envNameParentSessionId = 'DEEPDEBUGGER_PARENT_SESSION_ID';
 const propNameSessionId = 'deepDbgSessionID';
 const propNameParentSessionId = 'deepDbgParentSessionID';
-const deepDebuggerLogFileSwitch = '--deep-debugger-log-file';
 
 const SERVER_NAME: string = 'server';
-
-function sleep(ms) {
-	return new Promise((resolve) => {
-	  setTimeout(resolve, ms);
-	});
-}
-
-export async function getLock(fname: string) {
-	while (true) {
-		try {
-			fs.mkdirSync(fname + '.lock', { recursive: true });
-			break;
-		}
-		catch (e) {
-			await sleep(5);
-		}
-	}
-}
-
-export function releaseLock(fname: string) {
-	try {
-		fs.rmdirSync(fname + '.lock');
-	}
-	catch (e) {
-		// do nothing
-	}
-}
 
 type Environment = Array<{name: string, value: string|undefined}>;
 
@@ -70,97 +48,8 @@ interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
 	noDebug?: boolean;
 }
 
-class IPlatform {
-	exeSuffix: string = '';
-	pipePrefix: string = '';
-	envSetCommand: string = '';
-	listSeparator: string = '';
-	public isNode(f) { return false; };
-	public makeExecutable(fpath) { return path.join(getExtensionPath(), fpath + this.exeSuffix); }
-	public setBinaryConfigType(cfg) {}
-	public setConfigType(cfg) {}
-	public quote(s: string) { return s; }
-}
+export class DeepDebugSession extends DeepDebugSessionBase {
 
-class PlatformWin32 extends IPlatform {
-	public constructor() {
-		super();
-		this.exeSuffix = '.exe';
-		this.pipePrefix = '\\\\?\\pipe\\';
-		this.envSetCommand = 'set';
-		this.listSeparator = ';';
-	}
-	public isNode(f) { return f.toLowerCase() === 'node.exe'; };
-	public setBinaryConfigType(cfg) {
-		cfg.type = 'cppvsdbg';
-	}
-	public setConfigType(cfg) {
-		switch (path.extname(cfg.program).toLowerCase()) {
-			case '.exe':
-				cfg.type = 'binary';
-				break;
-			case '.sh':
-				cfg.type = 'bashdb';
-				break;
-		}
-	}
-}
-
-class Platform extends IPlatform {
-	public constructor() {
-		super();
-		this.exeSuffix = '.sh';
-		this.envSetCommand = 'export';
-		this.listSeparator = ':';
-	}
-	public isNode(f) {
-		 return f === 'node';
-	};
-	public makeExecutable(fpath) {
-		fpath = super.makeExecutable(fpath);
-		try {
-			fs.accessSync(fpath, fs.constants.X_OK);
-		} catch (e) {
-			var stats = fs.statSync(fpath);
-			fs.chmodSync(fpath, stats.mode | 0o111);
-		}
-		return fpath;
-	};
-	public setBinaryConfigType(cfg) {
-		cfg.type = 'cppdbg';
-		cfg.MIMode = 'gdb';
-		cfg.setupCommands = [
-			{
-				description: 'Enable pretty-printing for gdb',
-				text: '-enable-pretty-printing',
-				ignoreFailures: true
-			}
-		];
-	}
-	public setConfigType(cfg) {
-		var result = cp.execSync('file -b ' + cfg.program).toString().split(', ')[0];
-		switch (result) {
-			case 'ELF 64-bit LSB shared object':
-				cfg.type = 'binary';
-				break;
-			case 'POSIX shell script':
-			case 'Bourne-Again shell script':
-				cfg.type = 'bashdb';
-				break;
-		}
-	}
-	public quote(s: string) {
-		if (!s || s.search(/[^\w@%+=:,./-]/) < 0) {
-			return s;
-		}
-	
-		return '"' + s.replace('"', '\\"') + '"';
-	}
-}
-
-export class DeepDebugSession extends LoggingDebugSession {
-
-	// we don't support multiple threads, so we can use a hardcoded ID for the default thread
 	private static sessionID = 0;
 	private static sessionDict = new Map<string, vscode.DebugSession>();
 	private useHierarchy: boolean = false;
@@ -172,8 +61,6 @@ export class DeepDebugSession extends LoggingDebugSession {
 
 	private server: any = undefined;
 
-	public platform: IPlatform;
-
 	public deepDbgSettings = vscode.workspace.getConfiguration('deepdbg');
 	public logfile;
 	public logLock;
@@ -183,13 +70,7 @@ export class DeepDebugSession extends LoggingDebugSession {
 	 * We configure the default implementation of a debug adapter here.
 	 */
 	public constructor() {
-		super('deep-debugger.txt');
-
-		if (process.platform === 'win32') {
-			this.platform = new PlatformWin32();
-		} else {
-			this.platform = new Platform();
-		}
+		super();
 
 		var logfile = this.deepDbgSettings.get<string>('logfile');
 		if (logfile) {
@@ -273,28 +154,6 @@ export class DeepDebugSession extends LoggingDebugSession {
 		for (var v of vars) {
 			env.push(v);
 		}
-	}
-
-	protected findNode() {
-		var nodePath = 'node';
-		var isNodeAvailable = require('hasbin').sync(nodePath);
-		if (isNodeAvailable) {
-			return nodePath;
-		}
-		var binPath = path.join(getExtensionPath(), '../../bin');
-		var binPathFiles = fs.readdirSync(binPath);
-		for (var b of binPathFiles) {
-			var binDir = path.join(binPath, b);
-			if (fs.lstatSync(binDir).isDirectory()) {
-				var files = fs.readdirSync(binDir);
-				for (var file of files) {
-					if (this.platform.isNode(file)) {
-						return path.join(binDir, file);
-					}
-				}
-			}
-		}
-		return '';
 	}
 
 	protected getHook(mode, block: boolean = true) {
@@ -426,6 +285,11 @@ export class DeepDebugSession extends LoggingDebugSession {
 			cfg.args = args;
 		}
 		delete(cfg.cmdline);
+		
+		while (cfg.args.length > 1 && cfg.args[cfg.args.length - 2].startsWith(deepDebuggerPrefix)) {
+			cfg.args.pop();
+			cfg.args.pop();
+		}
 
 		this.resolveCfgProgram(cfg);
 
