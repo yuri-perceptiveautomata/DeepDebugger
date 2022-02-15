@@ -43,7 +43,8 @@ function getPythonPath(): string {
     }
 }
 
-function getInterpreter(pythonPath) {
+function getInterpreter(pythonPathIn) {
+    var pythonPath = pythonPathIn;
     var pyEnvLauncher = undefined, version: string = '';
     var pythonPathParsed = path.parse(pythonPath);
     var penvDir = pythonPathParsed.dir;
@@ -72,14 +73,14 @@ function getInterpreter(pythonPath) {
         }
     }
     if (process.platform !== 'win32') {
-        if (version.startsWith('3')) {
+        if (version.startsWith('3') && !pythonPath.endsWith('3')) {
             pythonPath += '3';
         }
     }
     return {path: pythonPath, version: version, launcher: pyEnvLauncher? pyEnvLauncher : pythonPath};
 }
 
-function cloneDriver(origPythonPath: string): string {
+function cloneDriver(origPythonPath: string, session: DeepDebugSessionBase): string {
     var tempPath = path.join(os.tmpdir(), 'DeepDebugger', PYTHON);
     var extensionPath = getExtensionPath();
     var parcedExtDir = path.parse(extensionPath);
@@ -87,11 +88,11 @@ function cloneDriver(origPythonPath: string): string {
     var pyInfo = getInterpreter(origPythonPath);
 
     var parcedPythonPath = path.parse(pyInfo.path);
-    var driverFileName = 'python_driver.sh';
-    if (process.platform === 'win32') {
-        driverFileName = 'python_driver.exe';
-        parcedExtDir.dir = parcedExtDir.dir.replace(':', path.sep);
-        parcedPythonPath.dir = parcedPythonPath.dir.replace(':', path.sep);
+    var platform = session.platform;
+    var driverFileName = platform.makeExecutable('python_driver');
+    if (platform.listSeparator !== ';') {
+        parcedExtDir.dir = parcedExtDir.dir.replace(';', platform.listSeparator);
+        parcedPythonPath.dir = parcedPythonPath.dir.replace(':', platform.listSeparator);
     }
 
     var tempDriverDir;
@@ -109,18 +110,17 @@ function cloneDriver(origPythonPath: string): string {
 
     var tempDriverPath = path.join(tempDriverDir, parcedPythonPath.base);
     try {
-        var origDriverPath = path.join(extensionPath, driverFileName);
         getLock(tempDriverDir);
         var driverNeedsUpdate = !fs.existsSync(tempDriverPath);
         if (!driverNeedsUpdate) {
-            var stat1 = fs.statSync(origDriverPath);
+            var stat1 = fs.statSync(driverFileName);
             var stat2 = fs.statSync(tempDriverPath);
             if (stat1.mtime > stat2.mtime) {
                 driverNeedsUpdate = true;
             }
         }
         if (driverNeedsUpdate) {
-            fs.copyFileSync(origDriverPath, tempDriverPath);
+            fs.copyFileSync(driverFileName, tempDriverPath);
         }
         releaseLock(tempDriverDir);
     } catch (e) {
@@ -129,7 +129,7 @@ function cloneDriver(origPythonPath: string): string {
     return tempDriverPath;
 }
 
-export function makeBinConfig(cfg, wf) {
+export function makeBinConfig(cfg, wf, session: DeepDebugSessionBase) {
     const DEFAULT_PYTHON_PATH = PYTHON;
     function notSet(pythonPath) {
         return !pythonPath || pythonPath === DEFAULT_PYTHON_PATH;
@@ -156,7 +156,7 @@ export function makeBinConfig(cfg, wf) {
         origPythonPath = hasbin.sync(DEFAULT_PYTHON_PATH);
     }
 
-    cfg.python = cloneDriver(origPythonPath);
+    cfg.python = cloneDriver(origPythonPath, session);
 
     if (!cfg.args) {
         cfg.args = Array();

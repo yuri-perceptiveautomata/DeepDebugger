@@ -7,7 +7,7 @@ shift
 
 PROCNAME=server
 
-if [ "$1" != "--deep-debugger-log-file" ]
+if [ "$1" = "stopped" ]
 then
     MESSAGE="$1"
     PROCNAME=stopper
@@ -51,7 +51,11 @@ if [ -n "${MESSAGE}" ]; then
         LOG "${PIPE} does not exist or is not a pipe, exiting"
     else
         LOG "Sending stop signal to ${PIPE} and exiting"
-        printf "%s" "${MESSAGE}" > "${PIPE}"
+        timeout 1 sh -c "printf '%s' ${MESSAGE} > ${PIPE}"
+        if [ $? = 124 ]; then
+            LOG "Sending stop signal to ${PIPE} timed out (no waiting server instance?), removing the pipe"
+            rm "${PIPE}"
+        fi
     fi
     release_lock "${PIPE}"
     exit 0

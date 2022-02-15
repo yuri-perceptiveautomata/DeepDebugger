@@ -78,8 +78,11 @@ export class DeepDebugSession extends DeepDebugSessionBase {
 			this.logLock = this.logfile + '.lock';
 			releaseLock(this.logfile); // just in case
 			getLock(this.logfile);
-			if (fs.existsSync(this.logfile)) {
+			try {
 				fs.unlinkSync(this.logfile);
+			}
+			catch (e) {
+				//
 			}
 			releaseLock(this.logfile);
 		}
@@ -397,7 +400,7 @@ export class DeepDebugSession extends DeepDebugSessionBase {
 				cfgData.cfg.deepDbgHookPipe = tempLauncherQueuePath;
 
 				if (cfgData.cfg.type === 'python' && cfgData.cfg.request === 'launch') {
-					python.makeBinConfig(cfgData.cfg, cfgData.wf);
+					python.makeBinConfig(cfgData.cfg, cfgData.wf, this);
 					if (this.logfile) {
 						cfgData.cfg.args = cfgData.cfg.args.concat([deepDebuggerLogFileSwitch, this.logfile]);
 					}
