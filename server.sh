@@ -7,7 +7,7 @@ shift
 
 PROCNAME=server
 
-if [ "$1" != "--deep-debugger-log-file" ]
+if [ "$1" = "stopped" ]
 then
     MESSAGE="$1"
     PROCNAME=stopper
