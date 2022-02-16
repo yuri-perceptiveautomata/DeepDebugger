@@ -16,6 +16,8 @@ import { DebugProtocol } from 'vscode-debugprotocol';
 
 import {
 	deepDebuggerPrefix,
+    deepDebuggerSessionNameSwitch,
+    deepDebuggerSessionCwdSwitch,
 	deepDebuggerLogFileSwitch,
 	DeepDebugSessionBase,
 	getLock,
@@ -288,7 +290,22 @@ export class DeepDebugSession extends DeepDebugSessionBase {
 			cfg.args = args;
 		}
 		delete(cfg.cmdline);
-		
+
+		var unquote = require('unquote');
+
+		for (var i = 1; i < cfg.args.length; ++i) {
+			if (cfg.args[i] === deepDebuggerSessionNameSwitch) {
+				var name = unquote(cfg.args[++i]);
+				if (name.startsWith('\\')) {
+					name = name.substring(1)
+				}
+				cfg.name = unquote(name);
+			}
+			if (cfg.args[i] === deepDebuggerSessionCwdSwitch) {
+				cfg.cwd = unquote(cfg.args[++i]);
+			}
+		}
+			
 		while (cfg.args.length > 1 && cfg.args[cfg.args.length - 2].startsWith(deepDebuggerPrefix)) {
 			cfg.args.pop();
 			cfg.args.pop();

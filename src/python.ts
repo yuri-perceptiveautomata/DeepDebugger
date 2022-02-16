@@ -9,14 +9,13 @@ import * as vscode from 'vscode';
 import {
     PYTHON,
     deepDebuggerPrefix,
+    deepDebuggerSessionNameSwitch,
+    deepDebuggerSessionCwdSwitch,
     DeepDebugSessionBase,
     getExtensionPath,
 	getLock,
 	releaseLock
 } from './common';
-
-const deepDebuggerSessionNameSwitch = deepDebuggerPrefix + 'session-name';
-const deepDebuggerSessionCwdSwitch = deepDebuggerPrefix + 'session-cwd';
 
 function getPythonPath(): string {
     try {
@@ -72,12 +71,19 @@ function getInterpreter(pythonPathIn) {
             }
         }
     }
-    if (process.platform !== 'win32') {
-        if (version.startsWith('3') && !pythonPath.endsWith('3')) {
-            pythonPath += '3';
-        }
+
+    if (process.platform === 'win32') {
+        return {path: pythonPath, version: version, launcher: pyEnvLauncher? pyEnvLauncher : pythonPath};
     }
-    return {path: pythonPath, version: version, launcher: pyEnvLauncher? pyEnvLauncher : pythonPath};
+
+    if (pyEnvLauncher) {
+        pythonPath = pyEnvLauncher
+    }
+    if (version.startsWith('3') && !pythonPath.endsWith('3')) {
+        pythonPath += '3';
+    }
+
+    return {path: pythonPath, version: version};
 }
 
 function cloneDriver(origPythonPath: string, session: DeepDebugSessionBase): string {
@@ -104,7 +110,8 @@ function cloneDriver(origPythonPath: string, session: DeepDebugSessionBase): str
         pathTemp = crypto.createHash('md5').update(pathTemp).digest('hex');
         tempDriverDir = path.join(tempPath, pathTemp);
         if (fs.mkdirSync(tempDriverDir, {recursive: true})) {
-            fs.writeFileSync(path.join(tempDriverDir, 'parent.cfg'), 'path=' + pyInfo.launcher + '\n');
+            var interpreterPath = pyInfo.launcher ? pyInfo.launcher : pyInfo.path
+            fs.writeFileSync(path.join(tempDriverDir, 'parent.cfg'), 'path=' + interpreterPath + '\n');
         }
     }
 
@@ -163,27 +170,15 @@ export function makeBinConfig(cfg, wf, session: DeepDebugSessionBase) {
     }
     cfg.args = cfg.args.concat(Array(
         deepDebuggerSessionCwdSwitch, cfg.cwd ? cfg.cwd : wf.uri.fsPath,
-        deepDebuggerSessionNameSwitch, cfg.name + ' (binary extensions)',
+        deepDebuggerSessionNameSwitch, '"' + cfg.name + ' (binary extensions)"',
         ));
 }
 
 export function transformConfig(cfg, session: DeepDebugSessionBase) {
 
-    var unquote = require('unquote');
-
     var pos = cfg.args.findIndex((v) => { return v.startsWith(deepDebuggerPrefix);});
     if (!pos) {
         return false;
-    }
-    var finalArgs = cfg.args;
-
-    for (var i = 1; i < cfg.args.length; ++i) {
-        if (cfg.args[i] === deepDebuggerSessionNameSwitch) {
-            cfg.name = unquote(cfg.args[++i]);
-        }
-        if (cfg.args[i] === deepDebuggerSessionCwdSwitch) {
-            cfg.cwd = unquote(cfg.args[++i]);
-        }
     }
 
     if (cfg.program) {
@@ -194,7 +189,6 @@ export function transformConfig(cfg, session: DeepDebugSessionBase) {
         session.decodeEnvironment(cfg);
         session.platform.setBinaryConfigType(cfg);
 
-        cfg.args = finalArgs;
         if (pyInfo.launcher) {
             cfg.environment.push({name: '__PYVENV_LAUNCHER__', value: pyInfo.launcher});
         }

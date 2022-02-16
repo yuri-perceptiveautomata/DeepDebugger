@@ -9,6 +9,8 @@ import { LoggingDebugSession } from 'vscode-debugadapter';
 export const PYTHON = 'python';
 export const deepDebuggerPrefix = '--deep-debugger-';
 export const deepDebuggerLogFileSwitch = deepDebuggerPrefix + 'log-file';
+export const deepDebuggerSessionNameSwitch = deepDebuggerPrefix + 'session-name';
+export const deepDebuggerSessionCwdSwitch = deepDebuggerPrefix + 'session-cwd';
 
 var extensionContext: vscode.ExtensionContext;
 
