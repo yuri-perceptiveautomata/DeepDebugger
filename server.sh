@@ -9,7 +9,7 @@ PROCNAME=server
 
 if [ "$1" = "stopped" ]
 then
-    MESSAGE="$1"
+    STOP="$1"
     PROCNAME=stopper
     shift
 fi
@@ -45,13 +45,13 @@ LOG() {
 LOG "Logging started"
 LOG "Command line: ${CMDLINE}"
 
-if [ -n "${MESSAGE}" ]; then
+if [ -n "${STOP}" ]; then
     lock "${PIPE}"
     if [ ! -p "${PIPE}" ]; then
         LOG "${PIPE} does not exist or is not a pipe, exiting"
     else
         LOG "Sending stop signal to ${PIPE} and exiting"
-        timeout 1 sh -c "printf '%s' ${MESSAGE} > ${PIPE}"
+        timeout 1 sh -c "printf '%s' ${STOP} > ${PIPE}"
         if [ $? = 124 ]; then
             LOG "Sending stop signal to ${PIPE} timed out (no waiting server instance?), removing the pipe"
             rm "${PIPE}"
@@ -70,11 +70,11 @@ release_lock "${PIPE}"
 
 while true; do
     LOG "Waiting on ${PIPE}"
-    read -r line < "${PIPE}"
-    if [ "$line" = 'stopped' ]; then
+    read -r LINE < "${PIPE}"
+    if [ "${LINE}" = 'stopped' ]; then
         LOG "Stop signal received, exiting"
         break
     fi
-    LOG "Printing start|${line}|end"
-    printf "%s" "start|${line}|end"
+    LOG "Printing start|${LINE}|end"
+    printf "%s" "start|${LINE}|end"
 done

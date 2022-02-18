@@ -126,9 +126,9 @@ export class DeepDebugSession extends DeepDebugSessionBase {
 		return cp.spawnSync(serverExe, serverArgs);
 	}
 
-	protected launchServer(queue: string, arg: string|undefined = undefined) {
+	protected launchServer(pipeName: string) {
 		var serverExe = this.platform.makeExecutable(SERVER_NAME);
-		var serverArgs = [queue];
+		var serverArgs = [pipeName];
 		if (this.logfile) {
 			serverArgs = serverArgs.concat([deepDebuggerLogFileSwitch, this.logfile]);
 		}
